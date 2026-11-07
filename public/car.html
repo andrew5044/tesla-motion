@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Tesla Motion View</title>
+  <title>Tesla Motion Screen</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body, html { width: 100vw; height: 100vh; overflow: hidden; }
+    
     #overlay {
       position: fixed; inset: 0; z-index: 999;
       background: #0f0f11; display: flex; flex-direction: column;
@@ -23,37 +24,73 @@
       font-size: 18px; font-weight: 700; border-radius: 30px; cursor: pointer;
       box-shadow: 0 4px 20px rgba(232, 33, 39, 0.4);
     }
-    #player-wrapper { width: 100vw; height: 100vh; pointer-events: none; }
+
+    /* Contenedores de reproducción */
+    #yt-wrapper, #hls-wrapper {
+      position: absolute; inset: 0; width: 100vw; height: 100vh;
+    }
+    #iptv-video {
+      width: 100%; height: 100%; object-fit: contain; background: #000;
+    }
+    .hidden { display: none !important; }
+    
+    /* Indicador sutil de canal o video activo */
+    #channel-tag {
+      position: absolute; top: 18px; left: 24px; z-index: 50;
+      background: rgba(0,0,0,0.65); padding: 8px 16px; border-radius: 8px;
+      font-size: 14px; border: 1px solid rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px); opacity: 0; transition: opacity 0.4s ease;
+    }
   </style>
 </head>
 <body>
 
   <div id="overlay">
-    <div class="badge">MODO COPILOTO ACTIVO</div>
+    <div class="badge">SISTEMA MULTIMEDIA COPILOTO</div>
     <h1>Conectar Pantalla Tesla</h1>
-    <p>Abre el control remoto en el celular del copiloto y toca el botón para habilitar pantalla y audio.</p>
+    <p>Toca para autorizar la pantalla y desbloquear el audio del vehículo.</p>
     
     <div class="room-box">
-      <span>Código de Sala</span>
+      <span>Código de Enlace</span>
       <strong id="display-room">TSLA-77</strong>
     </div>
 
     <button class="start-btn" onclick="startVehicleDisplay()">ACTIVAR PANTALLA Y AUDIO</button>
   </div>
 
-  <div id="player-wrapper">
+  <div id="channel-tag">Cargando...</div>
+
+  <!-- Reproductor YouTube -->
+  <div id="yt-wrapper">
     <div id="player"></div>
+  </div>
+
+  <!-- Reproductor IPTV / HLS -->
+  <div id="hls-wrapper" class="hidden">
+    <video id="iptv-video" playsinline></video>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script>
     const ROOM_ID = 'TSLA-77';
-    let player;
+    let ytPlayer;
+    let hls = null;
+    const iptvVideo = document.getElementById('iptv-video');
+    const ytWrapper = document.getElementById('yt-wrapper');
+    const hlsWrapper = document.getElementById('hls-wrapper');
+    const channelTag = document.getElementById('channel-tag');
     const socket = io();
 
+    function showTag(text) {
+      channelTag.textContent = text;
+      channelTag.style.opacity = '1';
+      setTimeout(() => { channelTag.style.opacity = '0'; }, 3500);
+    }
+
     function onYouTubeIframeAPIReady() {
-      player = new YT.Player('player', {
+      ytPlayer = new YT.Player('player', {
         height: '100%',
         width: '100%',
         videoId: '5qap5aO4i9A',
@@ -71,22 +108,70 @@
     function startVehicleDisplay() {
       document.getElementById('overlay').style.display = 'none';
       socket.emit('join-room', ROOM_ID);
-      if (player && player.playVideo) {
-        player.playVideo();
+      if (ytPlayer && ytPlayer.playVideo) {
+        ytPlayer.playVideo();
       }
+      showTag('Sistema Listo');
     }
 
+    // Modo IPTV
+    function playIptvStream(url, name = 'Canal IPTV') {
+      // Pausar YouTube y ocultarlo
+      if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+      ytWrapper.classList.add('hidden');
+      hlsWrapper.classList.remove('hidden');
+
+      if (hls) {
+        hls.destroy();
+      }
+
+      if (Hls.isSupported()) {
+        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hls.loadSource(url);
+        hls.attachMedia(iptvVideo);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          iptvVideo.play().catch(e => console.log('Autoplay blocked:', e));
+        });
+      } else if (iptvVideo.canPlayType('application/vnd.apple.mpegurl')) {
+        iptvVideo.src = url;
+        iptvVideo.play();
+      }
+      showTag(`En Vivo: ${name}`);
+    }
+
+    // Modo YouTube
+    function playYtVideo(videoId) {
+      // Pausar IPTV y ocultarlo
+      if (hls) {
+        iptvVideo.pause();
+        hls.destroy();
+        hls = null;
+      }
+      hlsWrapper.classList.add('hidden');
+      ytWrapper.classList.remove('hidden');
+      if (ytPlayer && ytPlayer.loadVideoById) {
+        ytPlayer.loadVideoById(videoId);
+      }
+      showTag('Reproduciendo YouTube');
+    }
+
+    // Recepción de órdenes desde el móvil
     socket.on('execute-command', ({ action, payload }) => {
-      if (!player) return;
       if (action === 'playVideo') {
-        player.loadVideoById(payload.videoId);
+        playYtVideo(payload.videoId);
+      } else if (action === 'playIptv') {
+        playIptvStream(payload.url, payload.name);
       } else if (action === 'pause') {
-        player.pauseVideo();
+        if (!hlsWrapper.classList.contains('hidden')) iptvVideo.pause();
+        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
       } else if (action === 'play') {
-        player.playVideo();
+        if (!hlsWrapper.classList.contains('hidden')) iptvVideo.play();
+        if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
       } else if (action === 'seek') {
-        const currentTime = player.getCurrentTime();
-        player.seekTo(currentTime + payload.seconds, true);
+        if (ytPlayer && ytWrapper && !ytWrapper.classList.contains('hidden')) {
+          const currentTime = ytPlayer.getCurrentTime();
+          ytPlayer.seekTo(currentTime + payload.seconds, true);
+        }
       }
     });
   </script>

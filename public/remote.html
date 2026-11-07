@@ -6,40 +6,91 @@
   <title>Control Copiloto</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: #121214; color: #fff; padding: 20px; display: flex; flex-direction: column; min-height: 100vh; }
-    .header { text-align: center; margin-bottom: 24px; }
+    body { background: #121214; color: #fff; padding: 18px; display: flex; flex-direction: column; min-height: 100vh; }
+    
+    .header { text-align: center; margin-bottom: 16px; }
     .header h2 { font-size: 20px; font-weight: 600; }
-    .header p { color: #888; font-size: 13px; margin-top: 4px; }
-    .input-card { background: #1c1c1e; padding: 16px; border-radius: 14px; margin-bottom: 20px; border: 1px solid #2a2a2c; }
+    .header p { color: #888; font-size: 13px; margin-top: 2px; }
+    
+    /* Tabs selector */
+    .tabs { display: flex; background: #1c1c1e; border-radius: 12px; padding: 4px; margin-bottom: 16px; }
+    .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; color: #888; font-weight: 600; font-size: 14px; border-radius: 8px; cursor: pointer; }
+    .tab-btn.active { background: #2c2c2e; color: #fff; }
+
+    .card { background: #1c1c1e; padding: 16px; border-radius: 14px; margin-bottom: 16px; border: 1px solid #2a2a2c; }
     label { font-size: 12px; color: #888; text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 8px; }
     input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; font-size: 14px; margin-bottom: 10px; }
     .btn-send { width: 100%; background: #e82127; color: #fff; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
-    .controls-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 10px; }
-    .ctrl-btn { background: #242426; border: 1px solid #333; color: #fff; padding: 16px 0; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
+
+    /* Canales rápidos */
+    .channel-list { display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; }
+    .channel-item { display: flex; justify-content: space-between; align-items: center; background: #242426; padding: 12px 14px; border-radius: 10px; cursor: pointer; border: 1px solid #333; }
+    .channel-item:active { background: #2c2c2e; border-color: #e82127; }
+    .channel-name { font-size: 14px; font-weight: 600; }
+    .channel-play { font-size: 12px; color: #e82127; font-weight: bold; }
+
+    /* Controles */
+    .controls-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .ctrl-btn { background: #242426; border: 1px solid #333; color: #fff; padding: 14px 0; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
     .ctrl-btn:active { background: #333; }
-    .btn-full { grid-column: span 3; background: #2c2c2e; padding: 14px; }
+    .btn-full { grid-column: span 3; background: #2c2c2e; }
+
+    .hidden { display: none; }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <h2>Control Remoto Tesla</h2>
-    <p>Conectado a la sala: <strong style="color: #e82127;">TSLA-77</strong></p>
+    <h2>Control Multimedia Tesla</h2>
+    <p>Sala: <strong style="color: #e82127;">TSLA-77</strong></p>
   </div>
 
-  <div class="input-card">
-    <label>Pegar URL o ID de YouTube</label>
-    <input type="text" id="ytUrl" placeholder="Ej: https://youtu.be/... o dQw4w9WgXcQ">
-    <button class="btn-send" onclick="sendVideo()">Enviar al Auto</button>
+  <!-- Pestañas de modo -->
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-yt-btn" onclick="switchTab('yt')">YouTube</button>
+    <button class="tab-btn" id="tab-iptv-btn" onclick="switchTab('iptv')">TV en Vivo (IPTV)</button>
   </div>
 
-  <div class="input-card">
+  <!-- Sección YouTube -->
+  <div id="section-yt">
+    <div class="card">
+      <label>Pegar URL o ID de YouTube</label>
+      <input type="text" id="ytUrl" placeholder="Ej: https://youtu.be/... o dQw4w9WgXcQ">
+      <button class="btn-send" onclick="sendVideo()">Enviar al Auto</button>
+    </div>
+  </div>
+
+  <!-- Sección IPTV -->
+  <div id="section-iptv" class="hidden">
+    <div class="card">
+      <label>URL de Transmisión M3U8 Directa</label>
+      <input type="text" id="iptvUrl" placeholder="https://ejemplo.com/stream.m3u8">
+      <button class="btn-send" onclick="sendCustomIptv()">Reproducir Señal</button>
+    </div>
+
+    <div class="card">
+      <label>Canales de Prueba Rápidos</label>
+      <div class="channel-list">
+        <div class="channel-item" onclick="sendIptv('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', 'Big Buck Bunny HLS Test')">
+          <span class="channel-name">Stream de Prueba HLS</span>
+          <span class="channel-play">VER EN AUTO ›</span>
+        </div>
+        <div class="channel-item" onclick="sendIptv('https://d2zihajmogu5jn.cloudfront.net/bipbop-advanced/bipbop_16x9_variant.m3u8', 'BipBop Multitasa Test')">
+          <span class="channel-name">Señal de Calibración 16:9</span>
+          <span class="channel-play">VER EN AUTO ›</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controles universales -->
+  <div class="card">
     <label>Controles de Reproducción</label>
     <div class="controls-grid">
       <button class="ctrl-btn" onclick="sendCommand('seek', { seconds: -10 })">-10s</button>
       <button class="ctrl-btn" onclick="sendCommand('play')">Play</button>
       <button class="ctrl-btn" onclick="sendCommand('seek', { seconds: 10 })">+10s</button>
-      <button class="ctrl-btn btn-full" onclick="sendCommand('pause')">Pausar Vídeo</button>
+      <button class="ctrl-btn btn-full" onclick="sendCommand('pause')">Pausar Reproducción</button>
     </div>
   </div>
 
@@ -49,6 +100,25 @@
     const ROOM_ID = 'TSLA-77';
 
     socket.emit('join-room', ROOM_ID);
+
+    function switchTab(mode) {
+      const secYt = document.getElementById('section-yt');
+      const secIptv = document.getElementById('section-iptv');
+      const tabYt = document.getElementById('tab-yt-btn');
+      const tabIptv = document.getElementById('tab-iptv-btn');
+
+      if (mode === 'yt') {
+        secYt.classList.remove('hidden');
+        secIptv.classList.add('hidden');
+        tabYt.classList.add('active');
+        tabIptv.classList.remove('active');
+      } else {
+        secYt.classList.add('hidden');
+        secIptv.classList.remove('hidden');
+        tabYt.classList.remove('active');
+        tabIptv.classList.add('active');
+      }
+    }
 
     function extractVideoId(url) {
       const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
@@ -65,6 +135,21 @@
         payload: { videoId }
       });
       document.getElementById('ytUrl').value = '';
+    }
+
+    function sendIptv(url, name) {
+      socket.emit('send-command', {
+        roomId: ROOM_ID,
+        action: 'playIptv',
+        payload: { url, name }
+      });
+    }
+
+    function sendCustomIptv() {
+      const url = document.getElementById('iptvUrl').value.trim();
+      if (!url) return;
+      sendIptv(url, 'Transmisión Personalizada');
+      document.getElementById('iptvUrl').value = '';
     }
 
     function sendCommand(action, payload = {}) {

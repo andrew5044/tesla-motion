@@ -9,6 +9,10 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/', (req, res) => {
+  res.redirect('/car');
+});
+
 app.get('/car', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'car.html'));
 });
