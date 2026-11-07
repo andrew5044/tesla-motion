@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Control Copiloto</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #121214; color: #fff; padding: 20px; display: flex; flex-direction: column; min-height: 100vh; }
+    .header { text-align: center; margin-bottom: 24px; }
+    .header h2 { font-size: 20px; font-weight: 600; }
+    .header p { color: #888; font-size: 13px; margin-top: 4px; }
+    .input-card { background: #1c1c1e; padding: 16px; border-radius: 14px; margin-bottom: 20px; border: 1px solid #2a2a2c; }
+    label { font-size: 12px; color: #888; text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 8px; }
+    input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; font-size: 14px; margin-bottom: 10px; }
+    .btn-send { width: 100%; background: #e82127; color: #fff; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
+    .controls-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 10px; }
+    .ctrl-btn { background: #242426; border: 1px solid #333; color: #fff; padding: 16px 0; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .ctrl-btn:active { background: #333; }
+    .btn-full { grid-column: span 3; background: #2c2c2e; padding: 14px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h2>Control Remoto Tesla</h2>
+    <p>Conectado a la sala: <strong style="color: #e82127;">TSLA-77</strong></p>
+  </div>
+
+  <div class="input-card">
+    <label>Pegar URL o ID de YouTube</label>
+    <input type="text" id="ytUrl" placeholder="Ej: https://youtu.be/... o dQw4w9WgXcQ">
+    <button class="btn-send" onclick="sendVideo()">Enviar al Auto</button>
+  </div>
+
+  <div class="input-card">
+    <label>Controles de Reproducción</label>
+    <div class="controls-grid">
+      <button class="ctrl-btn" onclick="sendCommand('seek', { seconds: -10 })">-10s</button>
+      <button class="ctrl-btn" onclick="sendCommand('play')">Play</button>
+      <button class="ctrl-btn" onclick="sendCommand('seek', { seconds: 10 })">+10s</button>
+      <button class="ctrl-btn btn-full" onclick="sendCommand('pause')">Pausar Vídeo</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const ROOM_ID = 'TSLA-77';
+
+    socket.emit('join-room', ROOM_ID);
+
+    function extractVideoId(url) {
+      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+      return match ? match[1] : url.trim();
+    }
+
+    function sendVideo() {
+      const input = document.getElementById('ytUrl').value;
+      if (!input) return;
+      const videoId = extractVideoId(input);
+      socket.emit('send-command', {
+        roomId: ROOM_ID,
+        action: 'playVideo',
+        payload: { videoId }
+      });
+      document.getElementById('ytUrl').value = '';
+    }
+
+    function sendCommand(action, payload = {}) {
+      socket.emit('send-command', {
+        roomId: ROOM_ID,
+        action,
+        payload
+      });
+    }
+  </script>
+</body>
+</html>

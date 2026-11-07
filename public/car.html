@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tesla Motion View</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body, html { width: 100vw; height: 100vh; overflow: hidden; }
+    #overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: #0f0f11; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center; padding: 20px;
+    }
+    .badge { background: #222; border: 1px solid #333; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #aaa; margin-bottom: 12px; }
+    h1 { font-size: 28px; margin-bottom: 8px; font-weight: 600; }
+    p { color: #888; font-size: 15px; margin-bottom: 24px; max-width: 450px; }
+    .room-box { background: #1c1c1e; border: 1px solid #2c2c2e; padding: 14px 28px; border-radius: 12px; margin-bottom: 28px; }
+    .room-box span { font-size: 13px; color: #888; display: block; margin-bottom: 4px; text-transform: uppercase; }
+    .room-box strong { font-size: 32px; letter-spacing: 4px; color: #e82127; }
+    .start-btn {
+      background: #e82127; color: #fff; border: none; padding: 16px 36px;
+      font-size: 18px; font-weight: 700; border-radius: 30px; cursor: pointer;
+      box-shadow: 0 4px 20px rgba(232, 33, 39, 0.4);
+    }
+    #player-wrapper { width: 100vw; height: 100vh; pointer-events: none; }
+  </style>
+</head>
+<body>
+
+  <div id="overlay">
+    <div class="badge">MODO COPILOTO ACTIVO</div>
+    <h1>Conectar Pantalla Tesla</h1>
+    <p>Abre el control remoto en el celular del copiloto y toca el botón para habilitar pantalla y audio.</p>
+    
+    <div class="room-box">
+      <span>Código de Sala</span>
+      <strong id="display-room">TSLA-77</strong>
+    </div>
+
+    <button class="start-btn" onclick="startVehicleDisplay()">ACTIVAR PANTALLA Y AUDIO</button>
+  </div>
+
+  <div id="player-wrapper">
+    <div id="player"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    const ROOM_ID = 'TSLA-77';
+    let player;
+    const socket = io();
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        height: '100%',
+        width: '100%',
+        videoId: '5qap5aO4i9A',
+        playerVars: {
+          'autoplay': 0,
+          'controls': 0,
+          'playsinline': 1,
+          'rel': 0,
+          'disablekb': 1,
+          'iv_load_policy': 3
+        }
+      });
+    }
+
+    function startVehicleDisplay() {
+      document.getElementById('overlay').style.display = 'none';
+      socket.emit('join-room', ROOM_ID);
+      if (player && player.playVideo) {
+        player.playVideo();
+      }
+    }
+
+    socket.on('execute-command', ({ action, payload }) => {
+      if (!player) return;
+      if (action === 'playVideo') {
+        player.loadVideoById(payload.videoId);
+      } else if (action === 'pause') {
+        player.pauseVideo();
+      } else if (action === 'play') {
+        player.playVideo();
+      } else if (action === 'seek') {
+        const currentTime = player.getCurrentTime();
+        player.seekTo(currentTime + payload.seconds, true);
+      }
+    });
+  </script>
+</body>
+</html>
