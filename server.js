@@ -16,39 +16,74 @@ app.get('/', (req, res) => res.redirect('/car'));
 app.get('/car', (req, res) => res.sendFile(path.join(__dirname, 'public', 'car.html')));
 app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
 
-// Endpoint que extrae el video nativo en MP4 para que la GPU de Tesla no lo congele
+// Extractor de stream nativo con bypass anti-bloqueo para Render
 app.get('/api/video-stream', async (req, res) => {
   const videoId = req.query.id;
   if (!videoId) return res.status(400).json({ error: 'Falta ID' });
 
+  // 1. Red de instancias públicas que resuelven el stream sin bloqueo de datacenter
+  const endpoints = [
+    `https://api.piped.private.coffee/streams/${videoId}`,
+    `https://pipedapi.kavin.rocks/streams/${videoId}`,
+    `https://pipedapi.leptons.xyz/streams/${videoId}`,
+    `https://yewtu.be/api/v1/videos/${videoId}`
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const response = await fetch(ep, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+      });
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Formato Piped (videoStreams con audio incluido)
+        if (data.videoStreams && Array.isArray(data.videoStreams)) {
+          const muxed = data.videoStreams.find(s => !s.videoOnly && s.mimeType && s.mimeType.includes('mp4')) 
+                     || data.videoStreams.find(s => !s.videoOnly);
+          if (muxed && muxed.url) {
+            return res.json({ streamUrl: muxed.url, title: data.title });
+          }
+        }
+
+        // Formato Invidious (formatStreams)
+        if (data.formatStreams && Array.isArray(data.formatStreams)) {
+          const muxed = data.formatStreams.find(s => s.container === 'mp4' || (s.type && s.type.includes('mp4'))) 
+                     || data.formatStreams[0];
+          if (muxed && muxed.url) {
+            return res.json({ streamUrl: muxed.url, title: data.title });
+          }
+        }
+      }
+    } catch (e) {
+      // Continuar al siguiente si una instancia no responde
+    }
+  }
+
+  // 2. Respaldo local ytdl
   try {
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const info = await ytdl.getInfo(videoUrl);
-    
-    // Buscar formato combinado (video + audio) compatible con HTML5 nativo (720p/360p)
     const format = ytdl.chooseFormat(info.formats, {
       quality: 'highest',
-      filter: (f) => f.hasVideo && f.hasAudio && f.container === 'mp4'
+      filter: (f) => f.hasVideo && f.hasAudio
     });
-
     if (format && format.url) {
       return res.json({ streamUrl: format.url, title: info.videoDetails.title });
     }
-
-    // Si no hay combinado MP4 directo, pasar el mejor disponible
-    const fallback = info.formats.find(f => f.hasVideo && f.hasAudio);
-    if (fallback && fallback.url) {
-      return res.json({ streamUrl: fallback.url, title: info.videoDetails.title });
-    }
-
-    res.status(404).json({ error: 'Formato no compatible' });
   } catch (err) {
-    console.error('Error extrayendo stream nativo:', err.message);
-    res.status(500).json({ error: 'No se pudo obtener el stream' });
+    console.error('Fallo ytdl local:', err.message);
   }
+
+  res.status(502).json({ error: 'No se pudo obtener el stream nativo' });
 });
 
-// Autocompletado
+// Autocompletado de búsqueda
 app.get('/api/suggest', async (req, res) => {
   const query = req.query.q;
   if (!query || !query.trim()) return res.json({ suggestions: [] });
@@ -64,7 +99,7 @@ app.get('/api/suggest', async (req, res) => {
   }
 });
 
-// Búsqueda
+// Búsqueda de videos
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json({ results: [] });

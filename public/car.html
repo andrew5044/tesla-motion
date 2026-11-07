@@ -28,7 +28,6 @@
       box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4); text-decoration: none; display: block;
     }
 
-    /* Reproductor Nativo HTML5 sin bloqueo de fotogramas */
     #native-video-wrapper {
       position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 10;
       background: #000; display: flex; align-items: center; justify-content: center;
@@ -105,7 +104,6 @@
 
   <div id="status-pill">Iniciando...</div>
 
-  <!-- Contenedor Nativo HTML5 -->
   <div id="native-video-wrapper">
     <video id="main-video" playsinline webkit-playsinline autoplay controls></video>
   </div>
@@ -165,13 +163,11 @@
       document.getElementById('overlay').style.display = 'none';
       socket.emit('join-room', ROOM_ID);
       userPaused = false;
-      video.play().catch(() => {});
       showStatus('Modo Continuo Listo');
     }
 
-    // Cargar stream nativo sin pasar por el iframe de YouTube
     async function playVideoById(videoId) {
-      showStatus('Preparando transmisión...');
+      showStatus('Preparando transmisión nativa...');
       try {
         const res = await fetch(`/api/video-stream?id=${encodeURIComponent(videoId)}`);
         const data = await res.json();
@@ -179,15 +175,15 @@
         if (data.streamUrl) {
           video.src = data.streamUrl;
           video.play().then(() => {
-            showStatus(data.title ? data.title.substring(0, 30) : 'En Vivo');
-          }).catch(err => {
-            console.warn('Requiere interacción táctil para reproducir');
+            showStatus(data.title ? data.title.substring(0, 32) : 'Reproduciendo');
+          }).catch(() => {
+            showStatus('Toca Play en el reproductor');
           });
         } else {
-          showStatus('Error al cargar video nativo');
+          showStatus('Error al resolver enlace del video');
         }
       } catch (e) {
-        showStatus('Error de conexión');
+        showStatus('Error de conexión con el servidor');
       }
     }
 
