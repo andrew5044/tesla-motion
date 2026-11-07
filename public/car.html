@@ -90,7 +90,7 @@
   <div id="overlay">
     <div class="badge">SISTEMA INTEGRADO TESLA MOTION</div>
     <h1>Pantalla Continua en Ruta</h1>
-    <p>Reproducción de video nativa continua sin congelamiento de fotogramas.</p>
+    <p>Toca para autorizar la reproducción continua nativa y desbloquear el audio.</p>
     
     <div class="room-box">
       <span>Código de Enlace</span>
@@ -105,7 +105,7 @@
   <div id="status-pill">Iniciando...</div>
 
   <div id="native-video-wrapper">
-    <video id="main-video" playsinline webkit-playsinline autoplay controls></video>
+    <video id="main-video" playsinline webkit-playsinline autoplay controls preload="auto"></video>
   </div>
 
   <button id="toggle-menu-btn" onclick="toggleDrawer()">
@@ -163,27 +163,39 @@
       document.getElementById('overlay').style.display = 'none';
       socket.emit('join-room', ROOM_ID);
       userPaused = false;
+      // Desbloqueo inicial del contexto de medios
+      video.play().catch(() => {});
       showStatus('Modo Continuo Listo');
     }
 
     async function playVideoById(videoId) {
-      showStatus('Preparando transmisión nativa...');
+      showStatus('Cargando transmisión nativa...');
       try {
         const res = await fetch(`/api/video-stream?id=${encodeURIComponent(videoId)}`);
         const data = await res.json();
         
         if (data.streamUrl) {
           video.src = data.streamUrl;
-          video.play().then(() => {
-            showStatus(data.title ? data.title.substring(0, 32) : 'Reproduciendo');
-          }).catch(() => {
-            showStatus('Toca Play en el reproductor');
-          });
+          video.load();
+          
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              showStatus(data.title ? data.title.substring(0, 32) : 'Reproduciendo');
+            }).catch(() => {
+              // Si el navegador de Tesla retiene el autoplay, reproducir silenciado y luego abrir volumen
+              video.muted = true;
+              video.play().then(() => {
+                video.muted = false;
+                showStatus(data.title ? data.title.substring(0, 32) : 'Reproduciendo');
+              });
+            });
+          }
         } else {
           showStatus('Error al resolver enlace del video');
         }
       } catch (e) {
-        showStatus('Error de conexión con el servidor');
+        showStatus('Error de conexión');
       }
     }
 
