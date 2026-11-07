@@ -6,7 +6,10 @@
   <title>Tesla Motion All-in-One</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff; }
+    body, html {
+      width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff;
+      -webkit-user-select: none; user-select: none;
+    }
     
     #overlay {
       position: fixed; inset: 0; z-index: 999;
@@ -15,25 +18,24 @@
     }
     .badge { background: #222; border: 1px solid #333; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #aaa; margin-bottom: 14px; }
     h1 { font-size: 26px; margin-bottom: 8px; font-weight: 700; letter-spacing: -0.5px; }
-    p { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 420px; line-height: 1.4; }
+    p { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 440px; line-height: 1.4; }
     
     .room-box { background: #1c1c1e; border: 1px solid #2c2c2e; padding: 12px 28px; border-radius: 12px; margin-bottom: 24px; }
     .room-box span { font-size: 11px; color: #888; display: block; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
     .room-box strong { font-size: 32px; letter-spacing: 4px; color: #e82127; }
     
-    .btn-container { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; }
+    .btn-container { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 340px; }
     .btn-primary {
       background: #e82127; color: #fff; border: none; padding: 16px;
       font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer;
       box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4); text-decoration: none; display: block;
     }
-    .btn-secondary {
-      background: #1c1c1e; color: #ddd; border: 1px solid #333; padding: 14px;
-      font-size: 14px; font-weight: 600; border-radius: 12px; cursor: pointer; text-decoration: none; display: block;
-    }
 
+    /* Blindaje de contenedor: dimensiones fijas y aceleración por GPU */
     #yt-wrapper {
-      position: absolute; inset: 0; width: 100vw; height: 100vh; z-index: 10;
+      position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 10;
+      transform: translateZ(0); will-change: transform;
+      pointer-events: auto;
     }
     
     #status-pill {
@@ -44,7 +46,6 @@
       pointer-events: none;
     }
 
-    /* Botón flotante para abrir controles en la pantalla del auto */
     #toggle-menu-btn {
       position: absolute; bottom: 24px; right: 24px; z-index: 60;
       background: rgba(232, 33, 39, 0.9); color: #fff; border: none;
@@ -54,10 +55,9 @@
     }
     #toggle-menu-btn:active { transform: scale(0.96); }
 
-    /* Panel lateral superpuesto tipo MotionStream */
     #side-drawer {
       position: absolute; top: 0; right: 0; width: 420px; height: 100vh;
-      background: rgba(18, 18, 20, 0.94); backdrop-filter: blur(20px);
+      background: rgba(18, 18, 20, 0.95); backdrop-filter: blur(20px);
       z-index: 70; border-left: 1px solid rgba(255,255,255,0.12);
       display: flex; flex-direction: column; padding: 20px;
       transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -89,19 +89,23 @@
 </head>
 <body>
 
+  <!-- Audio puente silencioso para registrar la sesión multimedia con el sistema del auto -->
+  <audio id="keepAliveAudio" loop playsinline preload="auto">
+    <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=" type="audio/wav">
+  </audio>
+
   <div id="overlay">
     <div class="badge">SISTEMA INTEGRADO TESLA MOTION</div>
-    <h1>Pantalla Todo en Uno</h1>
-    <p>Controla los vídeos y televisión en vivo directamente desde la pantalla central o sincroniza desde cualquier teléfono.</p>
+    <h1>Pantalla Continua en Ruta</h1>
+    <p>Activa la sesión prioritaria de audio y video para evitar pausas al cambiar de marcha.</p>
     
     <div class="room-box">
-      <span>Código de Sincronización</span>
+      <span>Código de Enlace</span>
       <strong id="display-room">TSLA-77</strong>
     </div>
 
     <div class="btn-container">
-      <button class="btn-primary" onclick="startDisplay()">1. ACTIVAR PANTALLA Y AUDIO</button>
-      <a class="btn-secondary" id="theater-trigger" href="#">2. PANTALLA COMPLETA (TEATRO)</a>
+      <button class="btn-primary" onclick="startDisplay()">SOY PASAJERO - ACTIVAR MODO CONTINUO</button>
     </div>
   </div>
 
@@ -111,12 +115,10 @@
     <div id="player"></div>
   </div>
 
-  <!-- Botón flotante siempre disponible en la esquina del Tesla -->
   <button id="toggle-menu-btn" onclick="toggleDrawer()">
     <span>🔍</span> Controles y Búsqueda
   </button>
 
-  <!-- Menú lateral superpuesto sobre el vídeo -->
   <div id="side-drawer">
     <div class="drawer-header">
       <h3>Menú Multimedia</h3>
@@ -124,7 +126,7 @@
     </div>
 
     <div class="search-box">
-      <input type="text" id="drawerSearchInput" placeholder="Buscar canción o tema..." autocomplete="off" oninput="handleDrawerSuggest(this.value)" onkeydown="if(event.key==='Enter') executeDrawerSearch(this.value)">
+      <input type="text" id="drawerSearchInput" placeholder="Buscar vídeo o tema..." autocomplete="off" oninput="handleDrawerSuggest(this.value)" onkeydown="if(event.key==='Enter') executeDrawerSearch(this.value)">
       <button onclick="executeDrawerSearch(document.getElementById('drawerSearchInput').value)">Buscar</button>
     </div>
 
@@ -132,7 +134,7 @@
 
     <div class="drawer-results" id="drawerResults">
       <div style="font-size: 12px; color: #888; text-align: center; margin-top: 20px;">
-        Busca contenido o selecciona un vídeo para reproducir de fondo.
+        Selecciona un contenido para reproducir.
       </div>
     </div>
 
@@ -150,12 +152,27 @@
     const ROOM_ID = 'TSLA-77';
     let ytPlayer;
     let suggestDebounce = null;
+    let userPaused = false;
+    let keeperTimer = null;
     const statusPill = document.getElementById('status-pill');
     const drawer = document.getElementById('side-drawer');
+    const keepAliveAudio = document.getElementById('keepAliveAudio');
     const socket = io();
 
-    const destinationUrl = encodeURIComponent(window.location.origin + '/car');
-    document.getElementById('theater-trigger').href = `https://www.youtube.com/redirect?q=${destinationUrl}`;
+    // 1. Blindaje contra los eventos de pérdida de foco del sistema al pasar a Drive
+    window.addEventListener('blur', (e) => {
+      e.stopImmediatePropagation();
+    }, true);
+
+    document.addEventListener('visibilitychange', (e) => {
+      if (document.hidden) {
+        e.stopImmediatePropagation();
+        // Si el auto oculta temporalmente el contexto de primer plano, reactivamos
+        if (ytPlayer && !userPaused && ytPlayer.playVideo) {
+          ytPlayer.playVideo();
+        }
+      }
+    }, true);
 
     function showStatus(msg) {
       statusPill.textContent = msg;
@@ -173,30 +190,89 @@
         width: '100%',
         videoId: '5qap5aO4i9A',
         playerVars: {
-          'autoplay': 0,
+          'autoplay': 1,
           'controls': 1,
           'playsinline': 1,
           'rel': 0,
           'disablekb': 1,
-          'iv_load_policy': 3
+          'modestbranding': 1,
+          'fs': 0
+        },
+        events: {
+          'onStateChange': onPlayerStateChange
         }
       });
+    }
+
+    function setupMediaSession() {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'Tesla Motion Stream',
+          artist: 'Copiloto Activo',
+          album: 'Pantalla Continua'
+        });
+
+        navigator.mediaSession.playbackState = 'playing';
+
+        navigator.mediaSession.setActionHandler('play', () => {
+          userPaused = false;
+          if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+        });
+
+        navigator.mediaSession.setActionHandler('pause', () => {
+          userPaused = true;
+          if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+        });
+      }
+    }
+
+    function onPlayerStateChange(event) {
+      // Si entra en pausa pero el usuario NO la ordenó (evento provocado al meter Drive)
+      if (event.data === YT.PlayerState.PAUSED && !userPaused) {
+        if (ytPlayer && ytPlayer.playVideo) {
+          ytPlayer.playVideo();
+        }
+      }
+      if (event.data === YT.PlayerState.PLAYING) {
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      }
     }
 
     function startDisplay() {
       document.getElementById('overlay').style.display = 'none';
       socket.emit('join-room', ROOM_ID);
+      userPaused = false;
+
+      // Iniciar el canal de audio continuo para mantener el foco del subsistema de Tesla
+      keepAliveAudio.play().catch(() => {});
+      setupMediaSession();
+
       if (ytPlayer && ytPlayer.playVideo) {
         ytPlayer.playVideo();
       }
-      showStatus('Audio y Pantalla Listos');
+
+      // Verificación en bucle cada 250ms para recuperación inmediata sin bache
+      clearInterval(keeperTimer);
+      keeperTimer = setInterval(() => {
+        if (ytPlayer && ytPlayer.getPlayerState && !userPaused) {
+          const state = ytPlayer.getPlayerState();
+          if (state === YT.PlayerState.PAUSED || state === 2) {
+            ytPlayer.playVideo();
+          }
+        }
+      }, 250);
+
+      showStatus('Modo Continuo Listo');
     }
 
     function playYtVideo(videoId) {
+      userPaused = false;
       if (ytPlayer && ytPlayer.loadVideoById) {
         ytPlayer.loadVideoById(videoId);
       }
-      showStatus('Reproduciendo vídeo');
+      showStatus('Cargando señal...');
     }
 
     function handleDrawerSuggest(val) {
@@ -249,7 +325,7 @@
           card.onclick = () => {
             playYtVideo(v.videoId);
             emitCommand('playVideo', { videoId: v.videoId });
-            toggleDrawer(); // Ocultar el menú al seleccionar
+            toggleDrawer();
           };
           card.innerHTML = `
             <img src="${v.thumbnail}" alt="thumb">
@@ -266,15 +342,20 @@
     }
 
     function emitCommand(action, payload = {}) {
+      if (action === 'pause') userPaused = true;
+      if (action === 'play') userPaused = false;
       socket.emit('send-command', { roomId: ROOM_ID, action, payload });
     }
 
-    // Escuchar comandos remotos enviados desde el celular
     socket.on('execute-command', ({ action, payload }) => {
       if (action === 'playVideo') playYtVideo(payload.videoId);
-      else if (action === 'pause' && ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-      else if (action === 'play' && ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
-      else if (action === 'seek' && ytPlayer) {
+      else if (action === 'pause') {
+        userPaused = true;
+        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+      } else if (action === 'play') {
+        userPaused = false;
+        if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+      } else if (action === 'seek' && ytPlayer) {
         const cur = ytPlayer.getCurrentTime();
         ytPlayer.seekTo(cur + payload.seconds, true);
       }
