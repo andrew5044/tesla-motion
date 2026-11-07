@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Control Copiloto</title>
+  <title>Control Copiloto Tesla</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: #121214; color: #fff; padding: 18px; display: flex; flex-direction: column; min-height: 100vh; }
@@ -37,7 +37,7 @@
     .suggestion-item:active { background: #2c2c2e; color: #fff; }
 
     /* Resultados YouTube */
-    .results-container { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; margin-top: 10px; }
+    .results-container { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-top: 10px; }
     .video-card { display: flex; gap: 12px; background: #242426; border: 1px solid #333; padding: 8px; border-radius: 10px; align-items: center; cursor: pointer; }
     .video-card:active { border-color: #e82127; background: #2a2a2c; }
     .video-thumb { width: 90px; height: 55px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
@@ -45,20 +45,14 @@
     .video-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .video-meta { font-size: 11px; color: #888; margin-top: 4px; }
 
-    /* Canales IPTV M3U */
-    .channel-item { display: flex; justify-content: space-between; align-items: center; background: #242426; padding: 10px 14px; border-radius: 10px; border: 1px solid #333; gap: 10px; }
-    .channel-left { display: flex; align-items: center; gap: 10px; overflow: hidden; flex: 1; cursor: pointer; }
-    .channel-logo { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; background: #111; }
-    .channel-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .channel-actions { display: flex; align-items: center; gap: 12px; }
-    .fav-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #666; padding: 4px; }
-    .fav-btn.is-fav { color: #ffd700; }
-    .channel-play { font-size: 12px; color: #e82127; font-weight: bold; cursor: pointer; }
+    /* Canales Rápidos En Vivo */
+    .live-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 6px; }
+    .live-card { background: #242426; border: 1px solid #333; padding: 12px; border-radius: 10px; text-align: center; cursor: pointer; }
+    .live-card:active { border-color: #e82127; background: #2c2c2e; }
+    .live-card strong { display: block; font-size: 14px; margin-bottom: 4px; color: #fff; }
+    .live-card span { font-size: 11px; color: #e82127; font-weight: 700; text-transform: uppercase; }
 
-    .filter-bar { display: flex; gap: 8px; margin-bottom: 8px; }
-    .filter-btn { flex: 1; padding: 8px; background: #242426; border: 1px solid #333; border-radius: 8px; color: #aaa; font-size: 12px; font-weight: 600; cursor: pointer; }
-    .filter-btn.active { background: #e82127; color: #fff; border-color: #e82127; }
-
+    /* Controles */
     .controls-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .ctrl-btn { background: #242426; border: 1px solid #333; color: #fff; padding: 14px 0; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
     .ctrl-btn:active { background: #333; }
@@ -70,19 +64,19 @@
 <body>
 
   <div class="header">
-    <h2>Control Multimedia Tesla</h2>
+    <h2>Control Copiloto Tesla</h2>
     <p>Sala: <strong style="color: #e82127;">TSLA-77</strong></p>
   </div>
 
   <div class="tabs">
-    <button class="tab-btn active" id="tab-yt-btn" onclick="switchTab('yt')">YouTube</button>
-    <button class="tab-btn" id="tab-iptv-btn" onclick="switchTab('iptv')">IPTV (M3U)</button>
+    <button class="tab-btn active" id="tab-yt-btn" onclick="switchTab('yt')">Buscador YouTube</button>
+    <button class="tab-btn" id="tab-live-btn" onclick="switchTab('live')">TV En Vivo 24/7</button>
   </div>
 
-  <!-- Pestaña YouTube -->
+  <!-- Pestaña Buscador -->
   <div id="section-yt">
     <div class="card">
-      <label>Buscar vídeos en YouTube</label>
+      <label>Buscar vídeos o música</label>
       <div class="search-row">
         <input type="text" id="searchInput" placeholder="Escribe canción, artista o tema..." autocomplete="off" oninput="onSearchInput(this.value)" onkeydown="if(event.key==='Enter') executeSearch(this.value)">
         <button class="btn-action" onclick="executeSearch(document.getElementById('searchInput').value)">Buscar</button>
@@ -93,7 +87,7 @@
     </div>
 
     <div class="card">
-      <label>O enviar URL directa de YouTube</label>
+      <label>Enviar enlace directo de YouTube</label>
       <div class="search-row">
         <input type="text" id="ytUrl" placeholder="https://youtu.be/...">
         <button class="btn-action" onclick="sendDirectUrl()">Enviar</button>
@@ -101,30 +95,36 @@
     </div>
   </div>
 
-  <!-- Pestaña IPTV M3U -->
-  <div id="section-iptv" class="hidden">
-    <div class="card" id="m3u-input-box">
-      <label>Cargar Lista M3U (Enlace URL)</label>
-      <div class="search-row">
-        <input type="text" id="m3uUrlInput" placeholder="https://ejemplo.com/lista.m3u">
-        <button class="btn-action" onclick="loadM3uList()">Cargar</button>
+  <!-- Pestaña TV en Vivo 24/7 (Garantizados sin bloqueo) -->
+  <div id="section-live" class="hidden">
+    <div class="card">
+      <label>Canales de Transmisión Directa</label>
+      <div class="live-grid">
+        <div class="live-card" onclick="playLiveChannel('noticias caracol en vivo')">
+          <strong>Noticias Caracol</strong>
+          <span>🔴 En Directo</span>
+        </div>
+        <div class="live-card" onclick="playLiveChannel('noticias rcn en vivo')">
+          <strong>Noticias RCN</strong>
+          <span>🔴 En Directo</span>
+        </div>
+        <div class="live-card" onclick="playLiveChannel('redmas noticias en vivo')">
+          <strong>Red+ Noticias</strong>
+          <span>🔴 En Directo</span>
+        </div>
+        <div class="live-card" onclick="playLiveChannel('dw espanol en vivo')">
+          <strong>DW Español</strong>
+          <span>🔴 En Directo</span>
+        </div>
+        <div class="live-card" onclick="playLiveChannel('musica lofi hip hop live')">
+          <strong>Lofi Chill Beats</strong>
+          <span>🎵 Música 24/7</span>
+        </div>
+        <div class="live-card" onclick="playLiveChannel('musica electronica live 2026')">
+          <strong>Club Dance Live</strong>
+          <span>🎵 Música 24/7</span>
+        </div>
       </div>
-      <div id="m3uStatus" style="font-size:12px; color:#aaa; text-align:center;"></div>
-    </div>
-
-    <div class="card hidden" id="m3u-channels-box">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <label style="margin:0;">Canales (<span id="chCount">0</span>)</label>
-        <button onclick="resetM3uList()" style="background:none; border:none; color:#e82127; font-size:12px; cursor:pointer;">Cambiar Lista</button>
-      </div>
-
-      <div class="filter-bar">
-        <button class="filter-btn active" id="filter-all-btn" onclick="setChannelFilter('all')">Todos</button>
-        <button class="filter-btn" id="filter-fav-btn" onclick="setChannelFilter('fav')">⭐ Favoritos (<span id="favCount">0</span>)</button>
-      </div>
-
-      <input type="text" id="filterChannelInput" placeholder="Filtrar canal por nombre..." oninput="filterChannels()">
-      <div class="results-container" id="channelsListContainer"></div>
     </div>
   </div>
 
@@ -143,21 +143,9 @@
   <script>
     const socket = io();
     const ROOM_ID = 'TSLA-77';
-    let allChannels = [];
-    let currentFilterMode = 'all';
-    let favorites = JSON.parse(localStorage.getItem('m3u_favorites') || '[]');
     let suggestTimeout = null;
 
     socket.emit('join-room', ROOM_ID);
-
-    window.onload = () => {
-      updateFavCount();
-      const savedM3u = localStorage.getItem('m3u_url');
-      if (savedM3u) {
-        document.getElementById('m3uUrlInput').value = savedM3u;
-        loadM3uList();
-      }
-    };
 
     function onSearchInput(val) {
       clearTimeout(suggestTimeout);
@@ -231,177 +219,141 @@
             });
           };
           card.innerHTML = `
-            <img class="video-thumb" src="${v.thumbnail}" alt="thumb">
-            <div class="video-info">
-              <span class="video-title">${v.title}</span>
-              <span class="video-meta">${v.author} • ${v.timestamp}</span>
-            </div>
-          `;
-          container.appendChild(card);
-        });
-      } catch (e) {
-        loader.style.display = 'none';
-        container.innerHTML = '<div style="color:#e82127; font-size:13px; text-align:center;">Error al buscar</div>';
-      }
+            <img class="video-thumb" src="${v.thumbnail}" alt="thumb
+cat << 'EOF' > public/car.html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tesla Motion Screen</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; }
+    
+    #overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: #0f0f11; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center; padding: 24px;
+    }
+    .badge { background: #222; border: 1px solid #333; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #aaa; margin-bottom: 14px; }
+    h1 { font-size: 26px; margin-bottom: 8px; font-weight: 700; letter-spacing: -0.5px; }
+    p { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 420px; line-height: 1.4; }
+    
+    .room-box { background: #1c1c1e; border: 1px solid #2c2c2e; padding: 12px 28px; border-radius: 12px; margin-bottom: 24px; }
+    .room-box span { font-size: 11px; color: #888; display: block; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
+    .room-box strong { font-size: 32px; letter-spacing: 4px; color: #e82127; }
+    
+    .btn-container { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; }
+    .btn-primary {
+      background: #e82127; color: #fff; border: none; padding: 16px;
+      font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer;
+      box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4); text-decoration: none; display: block;
+    }
+    .btn-secondary {
+      background: #1c1c1e; color: #ddd; border: 1px solid #333; padding: 14px;
+      font-size: 14px; font-weight: 600; border-radius: 12px; cursor: pointer; text-decoration: none; display: block;
     }
 
-    function extractVideoId(url) {
-      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-      return match ? match[1] : url.trim();
+    #yt-wrapper {
+      position: absolute; inset: 0; width: 100vw; height: 100vh;
+    }
+    
+    #status-pill {
+      position: absolute; top: 16px; left: 20px; z-index: 50;
+      background: rgba(15, 15, 17, 0.85); padding: 8px 16px; border-radius: 8px;
+      font-size: 13px; border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="overlay">
+    <div class="badge">SISTEMA MULTIMEDIA COPILOTO</div>
+    <h1>Pantalla Tesla Motion</h1>
+    <p>Toca para autorizar la pantalla y desbloquear el audio del vehículo.</p>
+    
+    <div class="room-box">
+      <span>Código de Enlace</span>
+      <strong id="display-room">TSLA-77</strong>
+    </div>
+
+    <div class="btn-container">
+      <button class="btn-primary" onclick="startDisplay()">1. ACTIVAR PANTALLA Y AUDIO</button>
+      <a class="btn-secondary" id="theater-trigger" href="#">2. PANTALLA COMPLETA (TEATRO)</a>
+    </div>
+  </div>
+
+  <div id="status-pill">Iniciando...</div>
+
+  <div id="yt-wrapper">
+    <div id="player"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    const ROOM_ID = 'TSLA-77';
+    let ytPlayer;
+    const statusPill = document.getElementById('status-pill');
+    const socket = io();
+
+    const destinationUrl = encodeURIComponent(window.location.origin + '/car');
+    document.getElementById('theater-trigger').href = `https://www.youtube.com/redirect?q=${destinationUrl}`;
+
+    function showStatus(msg) {
+      statusPill.textContent = msg;
+      statusPill.style.opacity = '1';
+      setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
     }
 
-    function sendDirectUrl() {
-      const input = document.getElementById('ytUrl').value;
-      if (!input) return;
-      const videoId = extractVideoId(input);
-      socket.emit('send-command', {
-        roomId: ROOM_ID,
-        action: 'playVideo',
-        payload: { videoId }
-      });
-      document.getElementById('ytUrl').value = '';
-    }
-
-    async function loadM3uList() {
-      const url = document.getElementById('m3uUrlInput').value.trim();
-      const status = document.getElementById('m3uStatus');
-      if (!url) return;
-
-      status.textContent = 'Descargando y procesando lista M3U...';
-      status.style.color = '#888';
-
-      try {
-        const res = await fetch(`/api/iptv/m3u?url=${encodeURIComponent(url)}`);
-        const data = await res.json();
-
-        if (data.error) {
-          status.textContent = data.error;
-          status.style.color = '#e82127';
-          return;
+    function onYouTubeIframeAPIReady() {
+      ytPlayer = new YT.Player('player', {
+        height: '100%',
+        width: '100%',
+        videoId: '5qap5aO4i9A',
+        playerVars: {
+          'autoplay': 0,
+          'controls': 0,
+          'playsinline': 1,
+          'rel': 0,
+          'disablekb': 1,
+          'iv_load_policy': 3
         }
-
-        allChannels = data.channels || [];
-        localStorage.setItem('m3u_url', url);
-
-        document.getElementById('m3u-input-box').classList.add('hidden');
-        document.getElementById('m3u-channels-box').classList.remove('hidden');
-        document.getElementById('chCount').textContent = allChannels.length;
-
-        filterChannels();
-      } catch (e) {
-        status.textContent = 'Error al descargar la lista';
-        status.style.color = '#e82127';
-      }
-    }
-
-    function renderChannels(channels) {
-      const container = document.getElementById('channelsListContainer');
-      container.innerHTML = '';
-
-      if (channels.length === 0) {
-        container.innerHTML = '<div style="color:#888; font-size:13px; text-align:center; padding:15px;">Sin canales en esta vista</div>';
-        return;
-      }
-
-      channels.forEach(ch => {
-        const isFav = favorites.includes(String(ch.id));
-        const item = document.createElement('div');
-        item.className = 'channel-item';
-
-        const logoHtml = ch.logo ? `<img class="channel-logo" src="${ch.logo}" onerror="this.style.display='none'">` : '';
-
-        item.innerHTML = `
-          <div class="channel-left" onclick="playChannel('${ch.stream_url}', '${ch.name.replace(/'/g, "\\'")}')">
-            ${logoHtml}
-            <span class="channel-name">${ch.name}</span>
-          </div>
-          <div class="channel-actions">
-            <button class="fav-btn ${isFav ? 'is-fav' : ''}" onclick="toggleFavorite('${ch.id}', event)">
-              ${isFav ? '★' : '☆'}
-            </button>
-            <span class="channel-play" onclick="playChannel('${ch.stream_url}', '${ch.name.replace(/'/g, "\\'")}')">VER ›</span>
-          </div>
-        `;
-        container.appendChild(item);
       });
     }
 
-    function playChannel(url, name) {
-      socket.emit('send-command', {
-        roomId: ROOM_ID,
-        action: 'playIptv',
-        payload: { url, name }
-      });
-    }
-
-    function toggleFavorite(channelId, event) {
-      if (event) event.stopPropagation();
-      const id = String(channelId);
-      if (favorites.includes(id)) {
-        favorites = favorites.filter(favId => favId !== id);
-      } else {
-        favorites.push(id);
+    function startDisplay() {
+      document.getElementById('overlay').style.display = 'none';
+      socket.emit('join-room', ROOM_ID);
+      if (ytPlayer && ytPlayer.playVideo) {
+        ytPlayer.playVideo();
       }
-      localStorage.setItem('m3u_favorites', JSON.stringify(favorites));
-      updateFavCount();
-      filterChannels();
+      showStatus('Pantalla y Audio Conectados');
     }
 
-    function updateFavCount() {
-      document.getElementById('favCount').textContent = favorites.length;
-    }
-
-    function setChannelFilter(mode) {
-      currentFilterMode = mode;
-      document.getElementById('filter-all-btn').classList.toggle('active', mode === 'all');
-      document.getElementById('filter-fav-btn').classList.toggle('active', mode === 'fav');
-      filterChannels();
-    }
-
-    function filterChannels() {
-      const textQuery = document.getElementById('filterChannelInput').value.toLowerCase().trim();
-      let filtered = allChannels;
-
-      if (currentFilterMode === 'fav') {
-        filtered = filtered.filter(c => favorites.includes(String(c.id)));
+    function playYtVideo(videoId) {
+      if (ytPlayer && ytPlayer.loadVideoById) {
+        ytPlayer.loadVideoById(videoId);
       }
+      showStatus('Reproduciendo señal...');
+    }
 
-      if (textQuery) {
-        filtered = filtered.filter(c => c.name.toLowerCase().includes(textQuery));
+    socket.on('execute-command', ({ action, payload }) => {
+      if (action === 'playVideo') playYtVideo(payload.videoId);
+      else if (action === 'pause') {
+        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+      } else if (action === 'play') {
+        if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+      } else if (action === 'seek') {
+        if (ytPlayer) {
+          const currentTime = ytPlayer.getCurrentTime();
+          ytPlayer.seekTo(currentTime + payload.seconds, true);
+        }
       }
-
-      renderChannels(filtered.slice(0, 80));
-    }
-
-    function resetM3uList() {
-      localStorage.removeItem('m3u_url');
-      document.getElementById('m3u-channels-box').classList.add('hidden');
-      document.getElementById('m3u-input-box').classList.remove('hidden');
-      document.getElementById('m3uStatus').textContent = '';
-    }
-
-    function switchTab(mode) {
-      const secYt = document.getElementById('section-yt');
-      const secIptv = document.getElementById('section-iptv');
-      const tabYt = document.getElementById('tab-yt-btn');
-      const tabIptv = document.getElementById('tab-iptv-btn');
-
-      if (mode === 'yt') {
-        secYt.classList.remove('hidden');
-        secIptv.classList.add('hidden');
-        tabYt.classList.add('active');
-        tabIptv.classList.remove('active');
-      } else {
-        secYt.classList.add('hidden');
-        secIptv.classList.remove('hidden');
-        tabYt.classList.remove('active');
-        tabIptv.classList.add('active');
-      }
-    }
-
-    function sendCommand(action, payload = {}) {
-      socket.emit('send-command', { roomId: ROOM_ID, action, payload });
-    }
+    });
   </script>
 </body>
 </html>
