@@ -24,7 +24,7 @@ app.get('/remote', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'remote.html'));
 });
 
-// Proxy y reescritor de manifiestos HLS (soluciona la pantalla negra)
+// Proxy para saltar bloqueos HTTPS / Mixed Content en streams individuales
 app.get('/api/iptv/stream', (req, res) => {
   const targetUrl = req.query.url;
   if (!targetUrl) return res.status(400).send('Falta URL');
@@ -34,12 +34,8 @@ app.get('/api/iptv/stream', (req, res) => {
     const client = parsed.protocol === 'https:' ? https : http;
 
     const proxyReq = client.get(targetUrl, {
-      headers: {
-        'User-Agent': 'IPTVSmartersPlayer',
-        'Accept': '*/*'
-      }
+      headers: { 'User-Agent': 'IPTVSmartersPlayer', 'Accept': '*/*' }
     }, (proxyRes) => {
-      // Manejar redirecciones HTTP 301/302 habituales en IPTV
       if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
         let redirectUrl = proxyRes.headers.location;
         if (!redirectUrl.startsWith('http')) {
@@ -48,54 +44,71 @@ app.get('/api/iptv/stream', (req, res) => {
         return res.redirect(`/api/iptv/stream?url=${encodeURIComponent(redirectUrl)}`);
       }
 
-      const contentType = proxyRes.headers['content-type'] || '';
-      res.setHeader('Access-Control-Allow-Origin', '*');
-
-      // Si es una lista M3U8, leemos el texto y reescribimos los enlaces internos
-      const isM3U8 = targetUrl.includes('.m3u8') || contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL');
-
-      if (isM3U8) {
-        let rawData = '';
-        proxyRes.setEncoding('utf8');
-        proxyRes.on('data', chunk => { rawData += chunk; });
-        proxyRes.on('end', () => {
-          res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-          const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
-
-          // Reescribir cada línea que sea un sub-manifiesto o segmento TS
-          const rewritten = rawData.split('\n').map(line => {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.startsWith('#')) return line;
-
-            let segmentUrl = trimmed;
-            if (!segmentUrl.startsWith('http://') && !segmentUrl.startsWith('https://')) {
-              segmentUrl = baseUrl + segmentUrl;
-            }
-            return `/api/iptv/stream?url=${encodeURIComponent(segmentUrl)}`;
-          }).join('\n');
-
-          res.send(rewritten);
-        });
-      } else {
-        // Si es un segmento binario de vídeo (.ts / .aac), enviarlo directo
-        res.writeHead(proxyRes.statusCode || 200, {
-          'Content-Type': contentType || 'video/MP2T',
-          'Access-Control-Allow-Origin': '*'
-        });
-        proxyRes.pipe(res);
-      }
+      const contentType = proxyRes.headers['content-type'] || 'application/vnd.apple.mpegurl';
+      res.writeHead(proxyRes.statusCode || 200, {
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*'
+      });
+      proxyRes.pipe(res);
     });
 
-    proxyReq.on('error', (err) => {
-      console.error('Error stream proxy:', err.message);
+    proxyReq.on('error', () => {
       if (!res.headersSent) res.status(502).send('Error conectando al stream');
     });
   } catch (err) {
-    if (!res.headersSent) res.status(400).send('URL inválida');
+    if (!res.headersSent) res.status(400).send('URL invalida');
   }
 });
 
-// Autocompletado YouTube
+// Cargar y procesar Lista M3U desde URL
+app.get('/api/iptv/m3u', async (req, res) => {
+  const m3uUrl = req.query.url;
+  if (!m3uUrl) return res.status(400).json({ error: 'Falta la URL de la lista M3U' });
+
+  try {
+    const response = await fetch(m3uUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'No se pudo descargar la lista M3U' });
+    }
+
+    const text = await response.text();
+    const lines = text.split('\n');
+    const channels = [];
+    let currentName = '';
+    let currentLogo = '';
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.startsWith('#EXTINF:')) {
+        // Extraer nombre
+        const nameMatch = line.match(/,(.+)$/);
+        currentName = nameMatch ? nameMatch[1].trim() : 'Canal sin nombre';
+
+        // Extraer logo si existe
+        const logoMatch = line.match(/tvg-logo="([^"]+)"/);
+        currentLogo = logoMatch ? logoMatch[1] : '';
+      } else if (line.startsWith('http://') || line.startsWith('https://')) {
+        channels.push({
+          id: channels.length + 1,
+          name: currentName || `Canal ${channels.length + 1}`,
+          logo: currentLogo,
+          stream_url: line
+        });
+        currentName = '';
+        currentLogo = '';
+      }
+    }
+
+    res.json({ channels: channels.slice(0, 1500) });
+  } catch (err) {
+    res.status(500).json({ error: 'Error procesando la lista M3U' });
+  }
+});
+
+// Sugerencias de YouTube
 app.get('/api/suggest', async (req, res) => {
   const query = req.query.q;
   if (!query || !query.trim()) return res.json({ suggestions: [] });
@@ -110,7 +123,7 @@ app.get('/api/suggest', async (req, res) => {
   }
 });
 
-// Búsqueda YouTube
+// Búsqueda de YouTube
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json({ results: [] });
@@ -126,42 +139,6 @@ app.get('/api/search', async (req, res) => {
     res.json({ results: videos });
   } catch (error) {
     res.status(500).json({ error: 'Error en la búsqueda' });
-  }
-});
-
-// Canales Xtream Codes
-app.get('/api/iptv/channels', async (req, res) => {
-  let { host, username, password } = req.query;
-  if (!host || !username || !password) {
-    return res.status(400).json({ error: 'Faltan credenciales' });
-  }
-
-  if (!host.startsWith('http://') && !host.startsWith('https://')) {
-    host = 'http://' + host;
-  }
-  host = host.replace(/\/$/, '');
-
-  const apiUrl = `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
-
-  try {
-    const response = await fetch(apiUrl);
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) {
-      return res.status(401).json({ error: 'Credenciales inválidas o sin canales' });
-    }
-
-    const channels = data.map(ch => ({
-      num: ch.num,
-      name: ch.name,
-      stream_id: ch.stream_id,
-      logo: ch.stream_icon || '',
-      stream_url: `${host}/live/${username}/${password}/${ch.stream_id}.m3u8`
-    }));
-
-    res.json({ channels });
-  } catch (err) {
-    res.status(500).json({ error: 'No se pudo conectar con el servidor IPTV' });
   }
 });
 

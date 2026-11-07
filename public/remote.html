@@ -35,7 +35,6 @@
     }
     .suggestion-item:last-child { border-bottom: none; }
     .suggestion-item:active { background: #2c2c2e; color: #fff; }
-    .suggestion-icon { color: #888; font-size: 13px; }
 
     /* Resultados YouTube */
     .results-container { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; margin-top: 10px; }
@@ -46,7 +45,7 @@
     .video-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .video-meta { font-size: 11px; color: #888; margin-top: 4px; }
 
-    /* Canales IPTV */
+    /* Canales IPTV M3U */
     .channel-item { display: flex; justify-content: space-between; align-items: center; background: #242426; padding: 10px 14px; border-radius: 10px; border: 1px solid #333; gap: 10px; }
     .channel-left { display: flex; align-items: center; gap: 10px; overflow: hidden; flex: 1; cursor: pointer; }
     .channel-logo { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; background: #111; }
@@ -56,12 +55,10 @@
     .fav-btn.is-fav { color: #ffd700; }
     .channel-play { font-size: 12px; color: #e82127; font-weight: bold; cursor: pointer; }
 
-    /* Filtros IPTV */
     .filter-bar { display: flex; gap: 8px; margin-bottom: 8px; }
     .filter-btn { flex: 1; padding: 8px; background: #242426; border: 1px solid #333; border-radius: 8px; color: #aaa; font-size: 12px; font-weight: 600; cursor: pointer; }
     .filter-btn.active { background: #e82127; color: #fff; border-color: #e82127; }
 
-    /* Controles */
     .controls-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .ctrl-btn { background: #242426; border: 1px solid #333; color: #fff; padding: 14px 0; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
     .ctrl-btn:active { background: #333; }
@@ -79,7 +76,7 @@
 
   <div class="tabs">
     <button class="tab-btn active" id="tab-yt-btn" onclick="switchTab('yt')">YouTube</button>
-    <button class="tab-btn" id="tab-iptv-btn" onclick="switchTab('iptv')">IPTV (Xtream)</button>
+    <button class="tab-btn" id="tab-iptv-btn" onclick="switchTab('iptv')">IPTV (M3U)</button>
   </div>
 
   <!-- Pestaña YouTube -->
@@ -96,7 +93,7 @@
     </div>
 
     <div class="card">
-      <label>O enviar URL directa</label>
+      <label>O enviar URL directa de YouTube</label>
       <div class="search-row">
         <input type="text" id="ytUrl" placeholder="https://youtu.be/...">
         <button class="btn-action" onclick="sendDirectUrl()">Enviar</button>
@@ -104,21 +101,21 @@
     </div>
   </div>
 
-  <!-- Pestaña IPTV -->
+  <!-- Pestaña IPTV M3U -->
   <div id="section-iptv" class="hidden">
-    <div class="card" id="iptv-login-box">
-      <label>Conexión IPTV (Xtream Codes)</label>
-      <input type="text" id="iptvHost" placeholder="Servidor (ej: http://iptvpro.me:8080)" style="margin-bottom:8px;">
-      <input type="text" id="iptvUser" placeholder="Usuario" style="margin-bottom:8px;">
-      <input type="password" id="iptvPass" placeholder="Contraseña" style="margin-bottom:8px;">
-      <button class="btn-action" style="width:100%;" onclick="loadXtreamChannels()">Conectar y Cargar Canales</button>
-      <div id="iptvStatus" style="font-size:12px; color:#aaa; margin-top:8px; text-align:center;"></div>
+    <div class="card" id="m3u-input-box">
+      <label>Cargar Lista M3U (Enlace URL)</label>
+      <div class="search-row">
+        <input type="text" id="m3uUrlInput" placeholder="https://ejemplo.com/lista.m3u">
+        <button class="btn-action" onclick="loadM3uList()">Cargar</button>
+      </div>
+      <div id="m3uStatus" style="font-size:12px; color:#aaa; text-align:center;"></div>
     </div>
 
-    <div class="card hidden" id="iptv-channels-box">
+    <div class="card hidden" id="m3u-channels-box">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <label style="margin:0;">Canales (<span id="chCount">0</span>)</label>
-        <button onclick="resetIptvLogin()" style="background:none; border:none; color:#e82127; font-size:12px; cursor:pointer;">Cambiar Cuenta</button>
+        <button onclick="resetM3uList()" style="background:none; border:none; color:#e82127; font-size:12px; cursor:pointer;">Cambiar Lista</button>
       </div>
 
       <div class="filter-bar">
@@ -126,7 +123,7 @@
         <button class="filter-btn" id="filter-fav-btn" onclick="setChannelFilter('fav')">⭐ Favoritos (<span id="favCount">0</span>)</button>
       </div>
 
-      <input type="text" id="filterChannelInput" placeholder="Filtrar por nombre..." oninput="filterChannels()">
+      <input type="text" id="filterChannelInput" placeholder="Filtrar canal por nombre..." oninput="filterChannels()">
       <div class="results-container" id="channelsListContainer"></div>
     </div>
   </div>
@@ -148,21 +145,17 @@
     const ROOM_ID = 'TSLA-77';
     let allChannels = [];
     let currentFilterMode = 'all';
-    let favorites = JSON.parse(localStorage.getItem('iptv_favorites') || '[]');
+    let favorites = JSON.parse(localStorage.getItem('m3u_favorites') || '[]');
     let suggestTimeout = null;
 
     socket.emit('join-room', ROOM_ID);
 
     window.onload = () => {
       updateFavCount();
-      const savedHost = localStorage.getItem('iptv_host');
-      const savedUser = localStorage.getItem('iptv_user');
-      const savedPass = localStorage.getItem('iptv_pass');
-      if (savedHost && savedUser && savedPass) {
-        document.getElementById('iptvHost').value = savedHost;
-        document.getElementById('iptvUser').value = savedUser;
-        document.getElementById('iptvPass').value = savedPass;
-        loadXtreamChannels();
+      const savedM3u = localStorage.getItem('m3u_url');
+      if (savedM3u) {
+        document.getElementById('m3uUrlInput').value = savedM3u;
+        loadM3uList();
       }
     };
 
@@ -173,7 +166,6 @@
 
       if (text.length < 2) {
         box.style.display = 'none';
-        box.innerHTML = '';
         return;
       }
 
@@ -182,16 +174,11 @@
           const res = await fetch(`/api/suggest?q=${encodeURIComponent(text)}`);
           const data = await res.json();
           const items = data.suggestions || [];
-
-          if (items.length === 0) {
-            box.style.display = 'none';
-            return;
-          }
+          if (items.length === 0) { box.style.display = 'none'; return; }
 
           box.innerHTML = items.slice(0, 7).map(term => `
             <div class="suggestion-item" onclick="selectSuggestion('${term.replace(/'/g, "\\'")}')">
-              <span class="suggestion-icon">🔍</span>
-              <span>${term}</span>
+              <span>🔍 ${term}</span>
             </div>
           `).join('');
           box.style.display = 'block';
@@ -258,8 +245,93 @@
       }
     }
 
-    function updateFavCount() {
-      document.getElementById('favCount').textContent = favorites.length;
+    function extractVideoId(url) {
+      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+      return match ? match[1] : url.trim();
+    }
+
+    function sendDirectUrl() {
+      const input = document.getElementById('ytUrl').value;
+      if (!input) return;
+      const videoId = extractVideoId(input);
+      socket.emit('send-command', {
+        roomId: ROOM_ID,
+        action: 'playVideo',
+        payload: { videoId }
+      });
+      document.getElementById('ytUrl').value = '';
+    }
+
+    async function loadM3uList() {
+      const url = document.getElementById('m3uUrlInput').value.trim();
+      const status = document.getElementById('m3uStatus');
+      if (!url) return;
+
+      status.textContent = 'Descargando y procesando lista M3U...';
+      status.style.color = '#888';
+
+      try {
+        const res = await fetch(`/api/iptv/m3u?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+
+        if (data.error) {
+          status.textContent = data.error;
+          status.style.color = '#e82127';
+          return;
+        }
+
+        allChannels = data.channels || [];
+        localStorage.setItem('m3u_url', url);
+
+        document.getElementById('m3u-input-box').classList.add('hidden');
+        document.getElementById('m3u-channels-box').classList.remove('hidden');
+        document.getElementById('chCount').textContent = allChannels.length;
+
+        filterChannels();
+      } catch (e) {
+        status.textContent = 'Error al descargar la lista';
+        status.style.color = '#e82127';
+      }
+    }
+
+    function renderChannels(channels) {
+      const container = document.getElementById('channelsListContainer');
+      container.innerHTML = '';
+
+      if (channels.length === 0) {
+        container.innerHTML = '<div style="color:#888; font-size:13px; text-align:center; padding:15px;">Sin canales en esta vista</div>';
+        return;
+      }
+
+      channels.forEach(ch => {
+        const isFav = favorites.includes(String(ch.id));
+        const item = document.createElement('div');
+        item.className = 'channel-item';
+
+        const logoHtml = ch.logo ? `<img class="channel-logo" src="${ch.logo}" onerror="this.style.display='none'">` : '';
+
+        item.innerHTML = `
+          <div class="channel-left" onclick="playChannel('${ch.stream_url}', '${ch.name.replace(/'/g, "\\'")}')">
+            ${logoHtml}
+            <span class="channel-name">${ch.name}</span>
+          </div>
+          <div class="channel-actions">
+            <button class="fav-btn ${isFav ? 'is-fav' : ''}" onclick="toggleFavorite('${ch.id}', event)">
+              ${isFav ? '★' : '☆'}
+            </button>
+            <span class="channel-play" onclick="playChannel('${ch.stream_url}', '${ch.name.replace(/'/g, "\\'")}')">VER ›</span>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function playChannel(url, name) {
+      socket.emit('send-command', {
+        roomId: ROOM_ID,
+        action: 'playIptv',
+        payload: { url, name }
+      });
     }
 
     function toggleFavorite(channelId, event) {
@@ -270,9 +342,13 @@
       } else {
         favorites.push(id);
       }
-      localStorage.setItem('iptv_favorites', JSON.stringify(favorites));
+      localStorage.setItem('m3u_favorites', JSON.stringify(favorites));
       updateFavCount();
       filterChannels();
+    }
+
+    function updateFavCount() {
+      document.getElementById('favCount').textContent = favorites.length;
     }
 
     function setChannelFilter(mode) {
@@ -280,6 +356,28 @@
       document.getElementById('filter-all-btn').classList.toggle('active', mode === 'all');
       document.getElementById('filter-fav-btn').classList.toggle('active', mode === 'fav');
       filterChannels();
+    }
+
+    function filterChannels() {
+      const textQuery = document.getElementById('filterChannelInput').value.toLowerCase().trim();
+      let filtered = allChannels;
+
+      if (currentFilterMode === 'fav') {
+        filtered = filtered.filter(c => favorites.includes(String(c.id)));
+      }
+
+      if (textQuery) {
+        filtered = filtered.filter(c => c.name.toLowerCase().includes(textQuery));
+      }
+
+      renderChannels(filtered.slice(0, 80));
+    }
+
+    function resetM3uList() {
+      localStorage.removeItem('m3u_url');
+      document.getElementById('m3u-channels-box').classList.add('hidden');
+      document.getElementById('m3u-input-box').classList.remove('hidden');
+      document.getElementById('m3uStatus').textContent = '';
     }
 
     function switchTab(mode) {
@@ -301,130 +399,8 @@
       }
     }
 
-    function extractVideoId(url) {
-      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-      return match ? match[1] : url.trim();
-    }
-
-    function sendDirectUrl() {
-      const input = document.getElementById('ytUrl').value;
-      if (!input) return;
-      const videoId = extractVideoId(input);
-      socket.emit('send-command', {
-        roomId: ROOM_ID,
-        action: 'playVideo',
-        payload: { videoId }
-      });
-      document.getElementById('ytUrl').value = '';
-    }
-
-    async function loadXtreamChannels() {
-      const host = document.getElementById('iptvHost').value.trim();
-      const username = document.getElementById('iptvUser').value.trim();
-      const password = document.getElementById('iptvPass').value.trim();
-      const status = document.getElementById('iptvStatus');
-
-      if (!host || !username || !password) return;
-
-      status.textContent = 'Cargando canales...';
-      status.style.color = '#888';
-
-      try {
-        const res = await fetch(`/api/iptv/channels?host=${encodeURIComponent(host)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`);
-        const data = await res.json();
-
-        if (data.error) {
-          status.textContent = data.error;
-          status.style.color = '#e82127';
-          return;
-        }
-
-        allChannels = data.channels || [];
-        localStorage.setItem('iptv_host', host);
-        localStorage.setItem('iptv_user', username);
-        localStorage.setItem('iptv_pass', password);
-
-        document.getElementById('iptv-login-box').classList.add('hidden');
-        document.getElementById('iptv-channels-box').classList.remove('hidden');
-        document.getElementById('chCount').textContent = allChannels.length;
-
-        filterChannels();
-      } catch (e) {
-        status.textContent = 'Error al conectar';
-        status.style.color = '#e82127';
-      }
-    }
-
-    function renderChannels(channels) {
-      const container = document.getElementById('channelsListContainer');
-      container.innerHTML = '';
-
-      if (channels.length === 0) {
-        container.innerHTML = '<div style="color:#888; font-size:13px; text-align:center; padding:15px;">Sin canales en esta vista</div>';
-        return;
-      }
-
-      channels.forEach(ch => {
-        const isFav = favorites.includes(String(ch.stream_id));
-        const item = document.createElement('div');
-        item.className = 'channel-item';
-
-        const logoHtml = ch.logo ? `<img class="channel-logo" src="${ch.logo}" onerror="this.style.display='none'">` : '';
-
-        item.innerHTML = `
-          <div class="channel-left" onclick="playChannel('${ch.stream_url}', '${ch.name.replace(/'/g, "\\'")}')">
-            ${logoHtml}
-            <span class="channel-name">${ch.name}</span>
-          </div>
-          <div class="channel-actions">
-            <button class="fav-btn ${isFav ? 'is-fav' : ''}" onclick="toggleFavorite('${ch.stream_id}', event)">
-              ${isFav ? '★' : '☆'}
-            </button>
-            <span class="channel-play" onclick="playChannel('${ch.stream_url}', '${ch.name.replace(/'/g, "\\'")}')">VER ›</span>
-          </div>
-        `;
-        container.appendChild(item);
-      });
-    }
-
-    function playChannel(url, name) {
-      socket.emit('send-command', {
-        roomId: ROOM_ID,
-        action: 'playIptv',
-        payload: { url, name }
-      });
-    }
-
-    function filterChannels() {
-      const textQuery = document.getElementById('filterChannelInput').value.toLowerCase().trim();
-      let filtered = allChannels;
-
-      if (currentFilterMode === 'fav') {
-        filtered = filtered.filter(c => favorites.includes(String(c.stream_id)));
-      }
-
-      if (textQuery) {
-        filtered = filtered.filter(c => c.name.toLowerCase().includes(textQuery));
-      }
-
-      renderChannels(filtered.slice(0, 60));
-    }
-
-    function resetIptvLogin() {
-      localStorage.removeItem('iptv_host');
-      localStorage.removeItem('iptv_user');
-      localStorage.removeItem('iptv_pass');
-      document.getElementById('iptv-channels-box').classList.add('hidden');
-      document.getElementById('iptv-login-box').classList.remove('hidden');
-      document.getElementById('iptvStatus').textContent = '';
-    }
-
     function sendCommand(action, payload = {}) {
-      socket.emit('send-command', {
-        roomId: ROOM_ID,
-        action,
-        payload
-      });
+      socket.emit('send-command', { roomId: ROOM_ID, action, payload });
     }
   </script>
 </body>
