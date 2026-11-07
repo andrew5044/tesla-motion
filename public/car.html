@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Tesla Motion Screen</title>
+  <title>Tesla Motion All-in-One</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff; }
     
     #overlay {
       position: fixed; inset: 0; z-index: 999;
@@ -32,13 +32,9 @@
       font-size: 14px; font-weight: 600; border-radius: 12px; cursor: pointer; text-decoration: none; display: block;
     }
 
-    #yt-wrapper, #hls-wrapper {
-      position: absolute; inset: 0; width: 100vw; height: 100vh;
+    #yt-wrapper {
+      position: absolute; inset: 0; width: 100vw; height: 100vh; z-index: 10;
     }
-    #iptv-video {
-      width: 100%; height: 100%; object-fit: contain; background: #000;
-    }
-    .hidden { display: none !important; }
     
     #status-pill {
       position: absolute; top: 16px; left: 20px; z-index: 50;
@@ -48,24 +44,58 @@
       pointer-events: none;
     }
 
-    #error-notice {
-      position: absolute; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; background: rgba(0,0,0,0.85);
-      z-index: 40; padding: 20px; text-align: center;
+    /* Botón flotante para abrir controles en la pantalla del auto */
+    #toggle-menu-btn {
+      position: absolute; bottom: 24px; right: 24px; z-index: 60;
+      background: rgba(232, 33, 39, 0.9); color: #fff; border: none;
+      padding: 14px 20px; border-radius: 30px; font-size: 15px; font-weight: 700;
+      cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px); display: flex; align-items: center; gap: 8px;
     }
-    #error-notice h3 { color: #e82127; margin-bottom: 8px; }
-    #error-notice p { color: #aaa; font-size: 14px; max-width: 400px; }
+    #toggle-menu-btn:active { transform: scale(0.96); }
+
+    /* Panel lateral superpuesto tipo MotionStream */
+    #side-drawer {
+      position: absolute; top: 0; right: 0; width: 420px; height: 100vh;
+      background: rgba(18, 18, 20, 0.94); backdrop-filter: blur(20px);
+      z-index: 70; border-left: 1px solid rgba(255,255,255,0.12);
+      display: flex; flex-direction: column; padding: 20px;
+      transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #side-drawer.open { transform: translateX(0); }
+
+    .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .drawer-header h3 { font-size: 18px; font-weight: 700; }
+    .close-btn { background: #2c2c2e; border: none; color: #fff; width: 32px; height: 32px; border-radius: 16px; font-weight: 700; cursor: pointer; }
+
+    .search-box { display: flex; gap: 8px; margin-bottom: 8px; }
+    .search-box input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; font-size: 14px; }
+    .search-box button { background: #e82127; border: none; color: #fff; padding: 12px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+
+    #suggest-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .suggest-chip { background: #242426; border: 1px solid #333; color: #ccc; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; text-align: left; }
+    .suggest-chip:active { background: #e82127; color: #fff; }
+
+    .drawer-results { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .item-card { display: flex; gap: 10px; background: #242426; border: 1px solid #333; padding: 8px; border-radius: 8px; align-items: center; cursor: pointer; }
+    .item-card:active { border-color: #e82127; }
+    .item-card img { width: 80px; height: 50px; border-radius: 4px; object-fit: cover; }
+    .item-title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .drawer-footer { margin-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .ctrl-btn { background: #242426; border: 1px solid #333; color: #fff; padding: 12px 0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .ctrl-btn:active { background: #333; }
   </style>
 </head>
 <body>
 
   <div id="overlay">
-    <div class="badge">SISTEMA MULTIMEDIA COPILOTO</div>
-    <h1>Pantalla Tesla Motion</h1>
-    <p>Toca para autorizar la pantalla y desbloquear el audio del vehículo.</p>
+    <div class="badge">SISTEMA INTEGRADO TESLA MOTION</div>
+    <h1>Pantalla Todo en Uno</h1>
+    <p>Controla los vídeos y televisión en vivo directamente desde la pantalla central o sincroniza desde cualquier teléfono.</p>
     
     <div class="room-box">
-      <span>Código de Enlace</span>
+      <span>Código de Sincronización</span>
       <strong id="display-room">TSLA-77</strong>
     </div>
 
@@ -81,28 +111,47 @@
     <div id="player"></div>
   </div>
 
-  <div id="hls-wrapper" class="hidden">
-    <video id="iptv-video" playsinline webkit-playsinline autoplay controls></video>
-    <div id="error-notice" class="hidden">
-      <h3>Canal No Compatible con el Navegador</h3>
-      <p id="error-text">El códec de este canal no es soportado nativamente por el navegador o el proveedor bloqueó la señal.</p>
+  <!-- Botón flotante siempre disponible en la esquina del Tesla -->
+  <button id="toggle-menu-btn" onclick="toggleDrawer()">
+    <span>🔍</span> Controles y Búsqueda
+  </button>
+
+  <!-- Menú lateral superpuesto sobre el vídeo -->
+  <div id="side-drawer">
+    <div class="drawer-header">
+      <h3>Menú Multimedia</h3>
+      <button class="close-btn" onclick="toggleDrawer()">✕</button>
+    </div>
+
+    <div class="search-box">
+      <input type="text" id="drawerSearchInput" placeholder="Buscar canción o tema..." autocomplete="off" oninput="handleDrawerSuggest(this.value)" onkeydown="if(event.key==='Enter') executeDrawerSearch(this.value)">
+      <button onclick="executeDrawerSearch(document.getElementById('drawerSearchInput').value)">Buscar</button>
+    </div>
+
+    <div id="suggest-list"></div>
+
+    <div class="drawer-results" id="drawerResults">
+      <div style="font-size: 12px; color: #888; text-align: center; margin-top: 20px;">
+        Busca contenido o selecciona un vídeo para reproducir de fondo.
+      </div>
+    </div>
+
+    <div class="drawer-footer">
+      <button class="ctrl-btn" onclick="emitCommand('seek', { seconds: -10 })">-10s</button>
+      <button class="ctrl-btn" onclick="emitCommand('play')">Play</button>
+      <button class="ctrl-btn" onclick="emitCommand('seek', { seconds: 10 })">+10s</button>
+      <button class="ctrl-btn" style="grid-column: span 3; background: #2c2c2e;" onclick="emitCommand('pause')">Pausar</button>
     </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script>
     const ROOM_ID = 'TSLA-77';
     let ytPlayer;
-    let hls = null;
-    let failureTimeout = null;
-    const iptvVideo = document.getElementById('iptv-video');
-    const ytWrapper = document.getElementById('yt-wrapper');
-    const hlsWrapper = document.getElementById('hls-wrapper');
+    let suggestDebounce = null;
     const statusPill = document.getElementById('status-pill');
-    const errorNotice = document.getElementById('error-notice');
-    const errorText = document.getElementById('error-text');
+    const drawer = document.getElementById('side-drawer');
     const socket = io();
 
     const destinationUrl = encodeURIComponent(window.location.origin + '/car');
@@ -111,7 +160,11 @@
     function showStatus(msg) {
       statusPill.textContent = msg;
       statusPill.style.opacity = '1';
-      setTimeout(() => { statusPill.style.opacity = '0'; }, 3500);
+      setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
+    }
+
+    function toggleDrawer() {
+      drawer.classList.toggle('open');
     }
 
     function onYouTubeIframeAPIReady() {
@@ -121,7 +174,7 @@
         videoId: '5qap5aO4i9A',
         playerVars: {
           'autoplay': 0,
-          'controls': 0,
+          'controls': 1,
           'playsinline': 1,
           'rel': 0,
           'disablekb': 1,
@@ -136,98 +189,94 @@
       if (ytPlayer && ytPlayer.playVideo) {
         ytPlayer.playVideo();
       }
-      iptvVideo.play().catch(() => {});
-      showStatus('Pantalla y Audio Conectados');
-    }
-
-    function playIptvStream(originalUrl, name = 'Canal IPTV') {
-      clearTimeout(failureTimeout);
-      errorNotice.classList.add('hidden');
-      if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-      ytWrapper.classList.add('hidden');
-      hlsWrapper.classList.remove('hidden');
-
-      if (hls) {
-        hls.destroy();
-        hls = null;
-      }
-
-      showStatus(`Sintonizando: ${name}...`);
-
-      const proxyUrl = `/api/iptv/stream?url=${encodeURIComponent(originalUrl)}`;
-
-      if (Hls.isSupported()) {
-        hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          maxBufferLength: 30
-        });
-
-        hls.loadSource(proxyUrl);
-        hls.attachMedia(iptvVideo);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          clearTimeout(failureTimeout);
-          iptvVideo.play().catch(() => {
-            iptvVideo.muted = true;
-            iptvVideo.play();
-          });
-          showStatus(`En Vivo: ${name}`);
-        });
-
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-            console.error('Fallo Hls.js fatal:', data);
-            errorNotice.classList.remove('hidden');
-            errorText.textContent = `Error (${data.details}): Códec no soportado por el navegador o proveedor inaccesible.`;
-          }
-        });
-      } else {
-        iptvVideo.src = proxyUrl;
-        iptvVideo.play().catch(() => {
-          errorNotice.classList.remove('hidden');
-        });
-      }
-
-      // Si en 6 segundos no arranca, mostrar aviso de incompatibilidad de formato
-      failureTimeout = setTimeout(() => {
-        if (iptvVideo.paused || iptvVideo.readyState < 2) {
-          errorNotice.classList.remove('hidden');
-          errorText.textContent = 'La señal no emite datos legibles para el navegador. Intenta con otro canal.';
-        }
-      }, 6000);
+      showStatus('Audio y Pantalla Listos');
     }
 
     function playYtVideo(videoId) {
-      clearTimeout(failureTimeout);
-      errorNotice.classList.add('hidden');
-      if (hls) {
-        iptvVideo.pause();
-        hls.destroy();
-        hls = null;
-      }
-      hlsWrapper.classList.add('hidden');
-      ytWrapper.classList.remove('hidden');
       if (ytPlayer && ytPlayer.loadVideoById) {
         ytPlayer.loadVideoById(videoId);
       }
-      showStatus('Reproduciendo YouTube');
+      showStatus('Reproduciendo vídeo');
     }
 
+    function handleDrawerSuggest(val) {
+      clearTimeout(suggestDebounce);
+      const query = val.trim();
+      const list = document.getElementById('suggest-list');
+      if (query.length < 2) { list.innerHTML = ''; return; }
+
+      suggestDebounce = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/suggest?q=${encodeURIComponent(query)}`);
+          const data = await res.json();
+          const items = data.suggestions || [];
+          if (items.length === 0) { list.innerHTML = ''; return; }
+
+          list.innerHTML = items.slice(0, 4).map(s => `
+            <div class="suggest-chip" onclick="selectDrawerSuggest('${s.replace(/'/g, "\\'")}')">🔍 ${s}</div>
+          `).join('');
+        } catch (e) {
+          list.innerHTML = '';
+        }
+      }, 200);
+    }
+
+    function selectDrawerSuggest(term) {
+      document.getElementById('drawerSearchInput').value = term;
+      document.getElementById('suggest-list').innerHTML = '';
+      executeDrawerSearch(term);
+    }
+
+    async function executeDrawerSearch(q) {
+      const query = q.trim();
+      if (!query) return;
+      document.getElementById('suggest-list').innerHTML = '';
+      const container = document.getElementById('drawerResults');
+      container.innerHTML = '<div style="color:#888; text-align:center; padding:15px; font-size:13px;">Buscando...</div>';
+
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (!data.results || data.results.length === 0) {
+          container.innerHTML = '<div style="color:#888; text-align:center; padding:15px; font-size:13px;">Sin resultados</div>';
+          return;
+        }
+
+        container.innerHTML = '';
+        data.results.forEach(v => {
+          const card = document.createElement('div');
+          card.className = 'item-card';
+          card.onclick = () => {
+            playYtVideo(v.videoId);
+            emitCommand('playVideo', { videoId: v.videoId });
+            toggleDrawer(); // Ocultar el menú al seleccionar
+          };
+          card.innerHTML = `
+            <img src="${v.thumbnail}" alt="thumb">
+            <div style="overflow:hidden;">
+              <div class="item-title">${v.title}</div>
+              <div style="font-size:11px; color:#888; margin-top:2px;">${v.author}</div>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (e) {
+        container.innerHTML = '<div style="color:#e82127; text-align:center; padding:15px; font-size:13px;">Error en la búsqueda</div>';
+      }
+    }
+
+    function emitCommand(action, payload = {}) {
+      socket.emit('send-command', { roomId: ROOM_ID, action, payload });
+    }
+
+    // Escuchar comandos remotos enviados desde el celular
     socket.on('execute-command', ({ action, payload }) => {
       if (action === 'playVideo') playYtVideo(payload.videoId);
-      else if (action === 'playIptv') playIptvStream(payload.url, payload.name);
-      else if (action === 'pause') {
-        if (!hlsWrapper.classList.contains('hidden')) iptvVideo.pause();
-        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-      } else if (action === 'play') {
-        if (!hlsWrapper.classList.contains('hidden')) iptvVideo.play();
-        if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
-      } else if (action === 'seek') {
-        if (ytPlayer && !ytWrapper.classList.contains('hidden')) {
-          const currentTime = ytPlayer.getCurrentTime();
-          ytPlayer.seekTo(currentTime + payload.seconds, true);
-        }
+      else if (action === 'pause' && ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+      else if (action === 'play' && ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+      else if (action === 'seek' && ytPlayer) {
+        const cur = ytPlayer.getCurrentTime();
+        ytPlayer.seekTo(cur + payload.seconds, true);
       }
     });
   </script>
