@@ -6,26 +6,32 @@
   <title>Tesla Motion Screen</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body, html { width: 100vw; height: 100vh; overflow: hidden; }
+    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; }
     
     #overlay {
       position: fixed; inset: 0; z-index: 999;
       background: #0f0f11; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; text-align: center; padding: 20px;
+      align-items: center; justify-content: center; text-align: center; padding: 24px;
     }
-    .badge { background: #222; border: 1px solid #333; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #aaa; margin-bottom: 12px; }
-    h1 { font-size: 28px; margin-bottom: 8px; font-weight: 600; }
-    p { color: #888; font-size: 15px; margin-bottom: 24px; max-width: 450px; }
-    .room-box { background: #1c1c1e; border: 1px solid #2c2c2e; padding: 14px 28px; border-radius: 12px; margin-bottom: 28px; }
-    .room-box span { font-size: 13px; color: #888; display: block; margin-bottom: 4px; text-transform: uppercase; }
+    .badge { background: #222; border: 1px solid #333; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #aaa; margin-bottom: 14px; }
+    h1 { font-size: 26px; margin-bottom: 8px; font-weight: 700; letter-spacing: -0.5px; }
+    p { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 420px; line-height: 1.4; }
+    
+    .room-box { background: #1c1c1e; border: 1px solid #2c2c2e; padding: 12px 28px; border-radius: 12px; margin-bottom: 24px; }
+    .room-box span { font-size: 11px; color: #888; display: block; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
     .room-box strong { font-size: 32px; letter-spacing: 4px; color: #e82127; }
-    .start-btn {
-      background: #e82127; color: #fff; border: none; padding: 16px 36px;
-      font-size: 18px; font-weight: 700; border-radius: 30px; cursor: pointer;
-      box-shadow: 0 4px 20px rgba(232, 33, 39, 0.4);
+    
+    .btn-container { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; }
+    .btn-primary {
+      background: #e82127; color: #fff; border: none; padding: 16px;
+      font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer;
+      box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4); text-decoration: none; display: block;
+    }
+    .btn-secondary {
+      background: #1c1c1e; color: #ddd; border: 1px solid #333; padding: 14px;
+      font-size: 14px; font-weight: 600; border-radius: 12px; cursor: pointer; text-decoration: none; display: block;
     }
 
-    /* Contenedores de reproducción */
     #yt-wrapper, #hls-wrapper {
       position: absolute; inset: 0; width: 100vw; height: 100vh;
     }
@@ -34,12 +40,12 @@
     }
     .hidden { display: none !important; }
     
-    /* Indicador sutil de canal o video activo */
-    #channel-tag {
-      position: absolute; top: 18px; left: 24px; z-index: 50;
-      background: rgba(0,0,0,0.65); padding: 8px 16px; border-radius: 8px;
-      font-size: 14px; border: 1px solid rgba(255,255,255,0.15);
-      backdrop-filter: blur(8px); opacity: 0; transition: opacity 0.4s ease;
+    #status-pill {
+      position: absolute; top: 16px; left: 20px; z-index: 50;
+      background: rgba(15, 15, 17, 0.85); padding: 8px 16px; border-radius: 8px;
+      font-size: 13px; border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease;
+      pointer-events: none;
     }
   </style>
 </head>
@@ -47,25 +53,26 @@
 
   <div id="overlay">
     <div class="badge">SISTEMA MULTIMEDIA COPILOTO</div>
-    <h1>Conectar Pantalla Tesla</h1>
-    <p>Toca para autorizar la pantalla y desbloquear el audio del vehículo.</p>
+    <h1>Pantalla Tesla Motion</h1>
+    <p>Selecciona cómo deseas inicializar el lienzo antes de conectar el control remoto.</p>
     
     <div class="room-box">
       <span>Código de Enlace</span>
       <strong id="display-room">TSLA-77</strong>
     </div>
 
-    <button class="start-btn" onclick="startVehicleDisplay()">ACTIVAR PANTALLA Y AUDIO</button>
+    <div class="btn-container">
+      <button class="btn-primary" onclick="startDisplay()">1. ACTIVAR PANTALLA Y AUDIO</button>
+      <a class="btn-secondary" id="theater-trigger" href="#">2. PANTALLA COMPLETA (TEATRO)</a>
+    </div>
   </div>
 
-  <div id="channel-tag">Cargando...</div>
+  <div id="status-pill">Iniciando...</div>
 
-  <!-- Reproductor YouTube -->
   <div id="yt-wrapper">
     <div id="player"></div>
   </div>
 
-  <!-- Reproductor IPTV / HLS -->
   <div id="hls-wrapper" class="hidden">
     <video id="iptv-video" playsinline></video>
   </div>
@@ -80,13 +87,16 @@
     const iptvVideo = document.getElementById('iptv-video');
     const ytWrapper = document.getElementById('yt-wrapper');
     const hlsWrapper = document.getElementById('hls-wrapper');
-    const channelTag = document.getElementById('channel-tag');
+    const statusPill = document.getElementById('status-pill');
     const socket = io();
 
-    function showTag(text) {
-      channelTag.textContent = text;
-      channelTag.style.opacity = '1';
-      setTimeout(() => { channelTag.style.opacity = '0'; }, 3500);
+    const destinationUrl = encodeURIComponent(window.location.origin + '/car');
+    document.getElementById('theater-trigger').href = `https://www.youtube.com/redirect?q=${destinationUrl}`;
+
+    function showStatus(msg) {
+      statusPill.textContent = msg;
+      statusPill.style.opacity = '1';
+      setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
     }
 
     function onYouTubeIframeAPIReady() {
@@ -105,43 +115,37 @@
       });
     }
 
-    function startVehicleDisplay() {
+    function startDisplay() {
       document.getElementById('overlay').style.display = 'none';
       socket.emit('join-room', ROOM_ID);
       if (ytPlayer && ytPlayer.playVideo) {
         ytPlayer.playVideo();
       }
-      showTag('Sistema Listo');
+      showStatus('Audio y Pantalla Listos');
     }
 
-    // Modo IPTV
-    function playIptvStream(url, name = 'Canal IPTV') {
-      // Pausar YouTube y ocultarlo
+    function playIptvStream(url, name = 'Canal en Vivo') {
       if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
       ytWrapper.classList.add('hidden');
       hlsWrapper.classList.remove('hidden');
 
-      if (hls) {
-        hls.destroy();
-      }
+      if (hls) hls.destroy();
 
       if (Hls.isSupported()) {
         hls = new Hls({ enableWorker: true, lowLatencyMode: true });
         hls.loadSource(url);
         hls.attachMedia(iptvVideo);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          iptvVideo.play().catch(e => console.log('Autoplay blocked:', e));
+          iptvVideo.play().catch(e => console.log('Autoplay bloqueado:', e));
         });
       } else if (iptvVideo.canPlayType('application/vnd.apple.mpegurl')) {
         iptvVideo.src = url;
         iptvVideo.play();
       }
-      showTag(`En Vivo: ${name}`);
+      showStatus(name);
     }
 
-    // Modo YouTube
     function playYtVideo(videoId) {
-      // Pausar IPTV y ocultarlo
       if (hls) {
         iptvVideo.pause();
         hls.destroy();
@@ -152,23 +156,20 @@
       if (ytPlayer && ytPlayer.loadVideoById) {
         ytPlayer.loadVideoById(videoId);
       }
-      showTag('Reproduciendo YouTube');
+      showStatus('Reproduciendo YouTube');
     }
 
-    // Recepción de órdenes desde el móvil
     socket.on('execute-command', ({ action, payload }) => {
-      if (action === 'playVideo') {
-        playYtVideo(payload.videoId);
-      } else if (action === 'playIptv') {
-        playIptvStream(payload.url, payload.name);
-      } else if (action === 'pause') {
+      if (action === 'playVideo') playYtVideo(payload.videoId);
+      else if (action === 'playIptv') playIptvStream(payload.url, payload.name);
+      else if (action === 'pause') {
         if (!hlsWrapper.classList.contains('hidden')) iptvVideo.pause();
         if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
       } else if (action === 'play') {
         if (!hlsWrapper.classList.contains('hidden')) iptvVideo.play();
         if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
       } else if (action === 'seek') {
-        if (ytPlayer && ytWrapper && !ytWrapper.classList.contains('hidden')) {
+        if (ytPlayer && !ytWrapper.classList.contains('hidden')) {
           const currentTime = ytPlayer.getCurrentTime();
           ytPlayer.seekTo(currentTime + payload.seconds, true);
         }
