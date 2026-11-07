@@ -23,7 +23,33 @@ app.get('/remote', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'remote.html'));
 });
 
-// Endpoint de sugerencias (Autocompletado)
+// Proxy de transmisión IPTV para evitar bloqueos HTTPS / CORS
+app.get('/api/iptv/proxy', async (req, res) => {
+  const streamUrl = req.query.url;
+  if (!streamUrl) return res.status(400).send('Falta URL');
+
+  try {
+    const response = await fetch(streamUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+      }
+    });
+
+    // Reenviar encabezados clave
+    const contentType = response.headers.get('content-type');
+    if (contentType) res.setHeader('content-type', contentType);
+    res.setHeader('access-control-allow-origin', '*');
+
+    // Transmitir en vivo el flujo directamente al cliente
+    const arrayBuffer = await response.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    console.error('Error en proxy de stream:', err.message);
+    res.status(502).send('Error transmitiendo canal');
+  }
+});
+
+// Sugerencias YouTube
 app.get('/api/suggest', async (req, res) => {
   const query = req.query.q;
   if (!query || !query.trim()) return res.json({ suggestions: [] });
@@ -38,7 +64,7 @@ app.get('/api/suggest', async (req, res) => {
   }
 });
 
-// Búsqueda en YouTube
+// Búsqueda YouTube
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json({ results: [] });
@@ -57,7 +83,7 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-// API Xtream Codes (IPTV)
+// Canales Xtream Codes
 app.get('/api/iptv/channels', async (req, res) => {
   let { host, username, password } = req.query;
   if (!host || !username || !password) {

@@ -54,7 +54,7 @@
   <div id="overlay">
     <div class="badge">SISTEMA MULTIMEDIA COPILOTO</div>
     <h1>Pantalla Tesla Motion</h1>
-    <p>Selecciona cómo deseas inicializar el lienzo antes de conectar el control remoto.</p>
+    <p>Toca para autorizar la pantalla y desbloquear el audio del vehículo.</p>
     
     <div class="room-box">
       <span>Código de Enlace</span>
@@ -74,7 +74,7 @@
   </div>
 
   <div id="hls-wrapper" class="hidden">
-    <video id="iptv-video" playsinline></video>
+    <video id="iptv-video" playsinline webkit-playsinline autoplay></video>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -96,7 +96,7 @@
     function showStatus(msg) {
       statusPill.textContent = msg;
       statusPill.style.opacity = '1';
-      setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
+      setTimeout(() => { statusPill.style.opacity = '0'; }, 3500);
     }
 
     function onYouTubeIframeAPIReady() {
@@ -121,28 +121,68 @@
       if (ytPlayer && ytPlayer.playVideo) {
         ytPlayer.playVideo();
       }
-      showStatus('Audio y Pantalla Listos');
+      // Desbloquear audio del elemento de video nativo
+      iptvVideo.play().then(() => iptvVideo.pause()).catch(() => {});
+      showStatus('Pantalla y Audio Conectados');
     }
 
-    function playIptvStream(url, name = 'Canal en Vivo') {
+    function playIptvStream(url, name = 'Canal IPTV') {
       if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
       ytWrapper.classList.add('hidden');
       hlsWrapper.classList.remove('hidden');
 
-      if (hls) hls.destroy();
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+
+      showStatus(`Cargando: ${name}`);
 
       if (Hls.isSupported()) {
-        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 90
+        });
+
         hls.loadSource(url);
         hls.attachMedia(iptvVideo);
+
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          iptvVideo.play().catch(e => console.log('Autoplay bloqueado:', e));
+          iptvVideo.play().catch(e => {
+            console.log('Autoplay prevent:', e);
+            // Reintento con silencio si el navegador exige interacción
+            iptvVideo.muted = false;
+            iptvVideo.play();
+          });
+          showStatus(`En Vivo: ${name}`);
+        });
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('Error de red, reintentando...');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.log('Error de medios, recuperando...');
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                // Si falla HLS.js, intentar reproducción HTML5 nativa
+                iptvVideo.src = url;
+                iptvVideo.play().catch(() => {});
+                break;
+            }
+          }
         });
       } else if (iptvVideo.canPlayType('application/vnd.apple.mpegurl')) {
         iptvVideo.src = url;
-        iptvVideo.play();
+        iptvVideo.play().catch(() => {});
+        showStatus(`En Vivo: ${name}`);
       }
-      showStatus(name);
     }
 
     function playYtVideo(videoId) {
