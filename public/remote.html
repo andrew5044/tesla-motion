@@ -16,28 +16,23 @@
     .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; color: #888; font-weight: 600; font-size: 14px; border-radius: 8px; cursor: pointer; }
     .tab-btn.active { background: #2c2c2e; color: #fff; }
 
-    .card { background: #1c1c1e; padding: 16px; border-radius: 14px; margin-bottom: 16px; border: 1px solid #2a2a2c; position: relative; }
+    .card { background: #1c1c1e; padding: 16px; border-radius: 14px; margin-bottom: 16px; border: 1px solid #2a2a2c; }
     label { font-size: 12px; color: #888; text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 8px; }
-    .search-row { display: flex; gap: 8px; margin-bottom: 10px; position: relative; }
-    input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; font-size: 14px; }
+    .search-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; font-size: 15px; }
     .btn-action { background: #e82127; color: #fff; border: none; padding: 12px 18px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 
-    /* Desplegable de autocompletado */
-    .suggestions-dropdown {
-      position: absolute; top: calc(100% - 2px); left: 0; right: 0;
-      background: #1c1c1e; border: 1px solid #3a3a3c; border-radius: 8px;
-      z-index: 100; max-height: 220px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-      display: none;
+    /* Barra de sugerencias horizontales y lista */
+    #suggest-bar { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .suggest-chip {
+      background: #242426; border: 1px solid #38383a; color: #ddd;
+      padding: 10px 14px; border-radius: 8px; font-size: 14px; cursor: pointer;
+      text-align: left; display: flex; align-items: center; gap: 8px;
     }
-    .suggestion-item {
-      padding: 12px 14px; font-size: 14px; color: #ddd; border-bottom: 1px solid #28282a;
-      cursor: pointer; display: flex; align-items: center; gap: 10px;
-    }
-    .suggestion-item:last-child { border-bottom: none; }
-    .suggestion-item:active { background: #2c2c2e; color: #fff; }
+    .suggest-chip:active { background: #e82127; color: #fff; border-color: #e82127; }
 
     /* Resultados YouTube */
-    .results-container { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-top: 10px; }
+    .results-container { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-top: 6px; }
     .video-card { display: flex; gap: 12px; background: #242426; border: 1px solid #333; padding: 8px; border-radius: 10px; align-items: center; cursor: pointer; }
     .video-card:active { border-color: #e82127; background: #2a2a2c; }
     .video-thumb { width: 90px; height: 55px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
@@ -78,10 +73,13 @@
     <div class="card">
       <label>Buscar vídeos o música</label>
       <div class="search-row">
-        <input type="text" id="searchInput" placeholder="Escribe canción, artista o tema..." autocomplete="off" oninput="onSearchInput(this.value)" onkeydown="if(event.key==='Enter') executeSearch(this.value)">
+        <input type="text" id="searchInput" placeholder="Escribe canción, artista o tema..." autocomplete="off" oninput="handleInput(this.value)" onkeydown="if(event.key==='Enter') executeSearch(this.value)">
         <button class="btn-action" onclick="executeSearch(document.getElementById('searchInput').value)">Buscar</button>
-        <div class="suggestions-dropdown" id="suggestionsBox"></div>
       </div>
+
+      <!-- Tira de Sugerencias Directas -->
+      <div id="suggest-bar"></div>
+
       <div id="loadingText" style="display:none; font-size:13px; color:#888; text-align:center; padding:10px;">Buscando vídeos...</div>
       <div class="results-container" id="resultsContainer"></div>
     </div>
@@ -95,7 +93,7 @@
     </div>
   </div>
 
-  <!-- Pestaña TV en Vivo 24/7 (Garantizados sin bloqueo) -->
+  <!-- Pestaña TV en Vivo -->
   <div id="section-live" class="hidden">
     <div class="card">
       <label>Canales de Transmisión Directa</label>
@@ -143,56 +141,53 @@
   <script>
     const socket = io();
     const ROOM_ID = 'TSLA-77';
-    let suggestTimeout = null;
+    let debounceTimer = null;
 
     socket.emit('join-room', ROOM_ID);
 
-    function onSearchInput(val) {
-      clearTimeout(suggestTimeout);
-      const box = document.getElementById('suggestionsBox');
-      const text = val.trim();
+    function handleInput(text) {
+      clearTimeout(debounceTimer);
+      const query = text.trim();
+      const suggestBar = document.getElementById('suggest-bar');
 
-      if (text.length < 2) {
-        box.style.display = 'none';
+      if (query.length < 2) {
+        suggestBar.innerHTML = '';
         return;
       }
 
-      suggestTimeout = setTimeout(async () => {
+      debounceTimer = setTimeout(async () => {
         try {
-          const res = await fetch(`/api/suggest?q=${encodeURIComponent(text)}`);
+          const res = await fetch(`/api/suggest?q=${encodeURIComponent(query)}`);
           const data = await res.json();
-          const items = data.suggestions || [];
-          if (items.length === 0) { box.style.display = 'none'; return; }
+          const list = data.suggestions || [];
 
-          box.innerHTML = items.slice(0, 7).map(term => `
-            <div class="suggestion-item" onclick="selectSuggestion('${term.replace(/'/g, "\\'")}')">
-              <span>🔍 ${term}</span>
+          if (list.length === 0) {
+            suggestBar.innerHTML = '';
+            return;
+          }
+
+          suggestBar.innerHTML = list.slice(0, 5).map(item => `
+            <div class="suggest-chip" onclick="applySuggestion('${item.replace(/'/g, "\\'")}')">
+              <span>🔍</span> <strong>${item}</strong>
             </div>
           `).join('');
-          box.style.display = 'block';
         } catch (e) {
-          box.style.display = 'none';
+          suggestBar.innerHTML = '';
         }
-      }, 250);
+      }, 200);
     }
 
-    function selectSuggestion(term) {
+    function applySuggestion(term) {
       document.getElementById('searchInput').value = term;
-      document.getElementById('suggestionsBox').style.display = 'none';
+      document.getElementById('suggest-bar').innerHTML = '';
       executeSearch(term);
     }
-
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.search-row')) {
-        document.getElementById('suggestionsBox').style.display = 'none';
-      }
-    });
 
     async function executeSearch(query) {
       const q = query.trim();
       if (!q) return;
 
-      document.getElementById('suggestionsBox').style.display = 'none';
+      document.getElementById('suggest-bar').innerHTML = '';
       const loader = document.getElementById('loadingText');
       const container = document.getElementById('resultsContainer');
       loader.style.display = 'block';
@@ -219,141 +214,75 @@
             });
           };
           card.innerHTML = `
-            <img class="video-thumb" src="${v.thumbnail}" alt="thumb
-cat << 'EOF' > public/car.html
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Tesla Motion Screen</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; }
-    
-    #overlay {
-      position: fixed; inset: 0; z-index: 999;
-      background: #0f0f11; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; text-align: center; padding: 24px;
-    }
-    .badge { background: #222; border: 1px solid #333; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #aaa; margin-bottom: 14px; }
-    h1 { font-size: 26px; margin-bottom: 8px; font-weight: 700; letter-spacing: -0.5px; }
-    p { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 420px; line-height: 1.4; }
-    
-    .room-box { background: #1c1c1e; border: 1px solid #2c2c2e; padding: 12px 28px; border-radius: 12px; margin-bottom: 24px; }
-    .room-box span { font-size: 11px; color: #888; display: block; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
-    .room-box strong { font-size: 32px; letter-spacing: 4px; color: #e82127; }
-    
-    .btn-container { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 320px; }
-    .btn-primary {
-      background: #e82127; color: #fff; border: none; padding: 16px;
-      font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer;
-      box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4); text-decoration: none; display: block;
-    }
-    .btn-secondary {
-      background: #1c1c1e; color: #ddd; border: 1px solid #333; padding: 14px;
-      font-size: 14px; font-weight: 600; border-radius: 12px; cursor: pointer; text-decoration: none; display: block;
+            <img class="video-thumb" src="${v.thumbnail}" alt="thumb">
+            <div class="video-info">
+              <span class="video-title">${v.title}</span>
+              <span class="video-meta">${v.author} • ${v.timestamp}</span>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (e) {
+        loader.style.display = 'none';
+        container.innerHTML = '<div style="color:#e82127; font-size:13px; text-align:center;">Error al buscar</div>';
+      }
     }
 
-    #yt-wrapper {
-      position: absolute; inset: 0; width: 100vw; height: 100vh;
-    }
-    
-    #status-pill {
-      position: absolute; top: 16px; left: 20px; z-index: 50;
-      background: rgba(15, 15, 17, 0.85); padding: 8px 16px; border-radius: 8px;
-      font-size: 13px; border: 1px solid rgba(255,255,255,0.12);
-      backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease;
-      pointer-events: none;
-    }
-  </style>
-</head>
-<body>
-
-  <div id="overlay">
-    <div class="badge">SISTEMA MULTIMEDIA COPILOTO</div>
-    <h1>Pantalla Tesla Motion</h1>
-    <p>Toca para autorizar la pantalla y desbloquear el audio del vehículo.</p>
-    
-    <div class="room-box">
-      <span>Código de Enlace</span>
-      <strong id="display-room">TSLA-77</strong>
-    </div>
-
-    <div class="btn-container">
-      <button class="btn-primary" onclick="startDisplay()">1. ACTIVAR PANTALLA Y AUDIO</button>
-      <a class="btn-secondary" id="theater-trigger" href="#">2. PANTALLA COMPLETA (TEATRO)</a>
-    </div>
-  </div>
-
-  <div id="status-pill">Iniciando...</div>
-
-  <div id="yt-wrapper">
-    <div id="player"></div>
-  </div>
-
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
-  <script>
-    const ROOM_ID = 'TSLA-77';
-    let ytPlayer;
-    const statusPill = document.getElementById('status-pill');
-    const socket = io();
-
-    const destinationUrl = encodeURIComponent(window.location.origin + '/car');
-    document.getElementById('theater-trigger').href = `https://www.youtube.com/redirect?q=${destinationUrl}`;
-
-    function showStatus(msg) {
-      statusPill.textContent = msg;
-      statusPill.style.opacity = '1';
-      setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
-    }
-
-    function onYouTubeIframeAPIReady() {
-      ytPlayer = new YT.Player('player', {
-        height: '100%',
-        width: '100%',
-        videoId: '5qap5aO4i9A',
-        playerVars: {
-          'autoplay': 0,
-          'controls': 0,
-          'playsinline': 1,
-          'rel': 0,
-          'disablekb': 1,
-          'iv_load_policy': 3
+    async function playLiveChannel(queryTerm) {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(queryTerm)}`);
+        const data = await res.json();
+        if (data.results && data.results.length > 0) {
+          socket.emit('send-command', {
+            roomId: ROOM_ID,
+            action: 'playVideo',
+            payload: { videoId: data.results[0].videoId }
+          });
         }
+      } catch (e) {
+        console.error('Error cargando canal:', e);
+      }
+    }
+
+    function extractVideoId(url) {
+      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+      return match ? match[1] : url.trim();
+    }
+
+    function sendDirectUrl() {
+      const input = document.getElementById('ytUrl').value;
+      if (!input) return;
+      const videoId = extractVideoId(input);
+      socket.emit('send-command', {
+        roomId: ROOM_ID,
+        action: 'playVideo',
+        payload: { videoId }
       });
+      document.getElementById('ytUrl').value = '';
     }
 
-    function startDisplay() {
-      document.getElementById('overlay').style.display = 'none';
-      socket.emit('join-room', ROOM_ID);
-      if (ytPlayer && ytPlayer.playVideo) {
-        ytPlayer.playVideo();
+    function switchTab(mode) {
+      const secYt = document.getElementById('section-yt');
+      const secLive = document.getElementById('section-live');
+      const tabYt = document.getElementById('tab-yt-btn');
+      const tabLive = document.getElementById('tab-live-btn');
+
+      if (mode === 'yt') {
+        secYt.classList.remove('hidden');
+        secLive.classList.add('hidden');
+        tabYt.classList.add('active');
+        tabLive.classList.remove('active');
+      } else {
+        secYt.classList.add('hidden');
+        secLive.classList.remove('hidden');
+        tabYt.classList.remove('active');
+        tabLive.classList.add('active');
       }
-      showStatus('Pantalla y Audio Conectados');
     }
 
-    function playYtVideo(videoId) {
-      if (ytPlayer && ytPlayer.loadVideoById) {
-        ytPlayer.loadVideoById(videoId);
-      }
-      showStatus('Reproduciendo señal...');
+    function sendCommand(action, payload = {}) {
+      socket.emit('send-command', { roomId: ROOM_ID, action, payload });
     }
-
-    socket.on('execute-command', ({ action, payload }) => {
-      if (action === 'playVideo') playYtVideo(payload.videoId);
-      else if (action === 'pause') {
-        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-      } else if (action === 'play') {
-        if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
-      } else if (action === 'seek') {
-        if (ytPlayer) {
-          const currentTime = ytPlayer.getCurrentTime();
-          ytPlayer.seekTo(currentTime + payload.seconds, true);
-        }
-      }
-    });
   </script>
 </body>
 </html>
