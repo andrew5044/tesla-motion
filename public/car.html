@@ -47,6 +47,14 @@
       backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease;
       pointer-events: none;
     }
+
+    #error-notice {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; background: rgba(0,0,0,0.85);
+      z-index: 40; padding: 20px; text-align: center;
+    }
+    #error-notice h3 { color: #e82127; margin-bottom: 8px; }
+    #error-notice p { color: #aaa; font-size: 14px; max-width: 400px; }
   </style>
 </head>
 <body>
@@ -74,7 +82,11 @@
   </div>
 
   <div id="hls-wrapper" class="hidden">
-    <video id="iptv-video" playsinline webkit-playsinline autoplay></video>
+    <video id="iptv-video" playsinline webkit-playsinline autoplay controls></video>
+    <div id="error-notice" class="hidden">
+      <h3>Canal No Compatible con el Navegador</h3>
+      <p id="error-text">El códec de este canal no es soportado nativamente por el navegador o el proveedor bloqueó la señal.</p>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -84,10 +96,13 @@
     const ROOM_ID = 'TSLA-77';
     let ytPlayer;
     let hls = null;
+    let failureTimeout = null;
     const iptvVideo = document.getElementById('iptv-video');
     const ytWrapper = document.getElementById('yt-wrapper');
     const hlsWrapper = document.getElementById('hls-wrapper');
     const statusPill = document.getElementById('status-pill');
+    const errorNotice = document.getElementById('error-notice');
+    const errorText = document.getElementById('error-text');
     const socket = io();
 
     const destinationUrl = encodeURIComponent(window.location.origin + '/car');
@@ -121,12 +136,13 @@
       if (ytPlayer && ytPlayer.playVideo) {
         ytPlayer.playVideo();
       }
-      // Desbloquear audio del elemento de video nativo
-      iptvVideo.play().then(() => iptvVideo.pause()).catch(() => {});
+      iptvVideo.play().catch(() => {});
       showStatus('Pantalla y Audio Conectados');
     }
 
-    function playIptvStream(url, name = 'Canal IPTV') {
+    function playIptvStream(originalUrl, name = 'Canal IPTV') {
+      clearTimeout(failureTimeout);
+      errorNotice.classList.add('hidden');
       if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
       ytWrapper.classList.add('hidden');
       hlsWrapper.classList.remove('hidden');
@@ -136,23 +152,24 @@
         hls = null;
       }
 
-      showStatus(`Cargando: ${name}`);
+      showStatus(`Sintonizando: ${name}...`);
+
+      const proxyUrl = `/api/iptv/stream?url=${encodeURIComponent(originalUrl)}`;
 
       if (Hls.isSupported()) {
         hls = new Hls({
           enableWorker: true,
           lowLatencyMode: true,
-          backBufferLength: 90
+          maxBufferLength: 30
         });
 
-        hls.loadSource(url);
+        hls.loadSource(proxyUrl);
         hls.attachMedia(iptvVideo);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          iptvVideo.play().catch(e => {
-            console.log('Autoplay prevent:', e);
-            // Reintento con silencio si el navegador exige interacción
-            iptvVideo.muted = false;
+          clearTimeout(failureTimeout);
+          iptvVideo.play().catch(() => {
+            iptvVideo.muted = true;
             iptvVideo.play();
           });
           showStatus(`En Vivo: ${name}`);
@@ -160,32 +177,30 @@
 
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('Error de red, reintentando...');
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.log('Error de medios, recuperando...');
-                hls.recoverMediaError();
-                break;
-              default:
-                hls.destroy();
-                // Si falla HLS.js, intentar reproducción HTML5 nativa
-                iptvVideo.src = url;
-                iptvVideo.play().catch(() => {});
-                break;
-            }
+            console.error('Fallo Hls.js fatal:', data);
+            errorNotice.classList.remove('hidden');
+            errorText.textContent = `Error (${data.details}): Códec no soportado por el navegador o proveedor inaccesible.`;
           }
         });
-      } else if (iptvVideo.canPlayType('application/vnd.apple.mpegurl')) {
-        iptvVideo.src = url;
-        iptvVideo.play().catch(() => {});
-        showStatus(`En Vivo: ${name}`);
+      } else {
+        iptvVideo.src = proxyUrl;
+        iptvVideo.play().catch(() => {
+          errorNotice.classList.remove('hidden');
+        });
       }
+
+      // Si en 6 segundos no arranca, mostrar aviso de incompatibilidad de formato
+      failureTimeout = setTimeout(() => {
+        if (iptvVideo.paused || iptvVideo.readyState < 2) {
+          errorNotice.classList.remove('hidden');
+          errorText.textContent = 'La señal no emite datos legibles para el navegador. Intenta con otro canal.';
+        }
+      }, 6000);
     }
 
     function playYtVideo(videoId) {
+      clearTimeout(failureTimeout);
+      errorNotice.classList.add('hidden');
       if (hls) {
         iptvVideo.pause();
         hls.destroy();
