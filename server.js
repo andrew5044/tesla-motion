@@ -24,7 +24,7 @@ app.get('/remote', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'remote.html'));
 });
 
-// Proxy de streaming nativo HTTP/HTTPS
+// Proxy y reescritor de manifiestos HLS (soluciona la pantalla negra)
 app.get('/api/iptv/stream', (req, res) => {
   const targetUrl = req.query.url;
   if (!targetUrl) return res.status(400).send('Falta URL');
@@ -35,18 +35,59 @@ app.get('/api/iptv/stream', (req, res) => {
 
     const proxyReq = client.get(targetUrl, {
       headers: {
-        'User-Agent': 'IPTVSmartersPlayer'
+        'User-Agent': 'IPTVSmartersPlayer',
+        'Accept': '*/*'
       }
     }, (proxyRes) => {
-      res.writeHead(proxyRes.statusCode || 200, {
-        'Content-Type': proxyRes.headers['content-type'] || 'application/vnd.apple.mpegurl',
-        'Access-Control-Allow-Origin': '*'
-      });
-      proxyRes.pipe(res);
+      // Manejar redirecciones HTTP 301/302 habituales en IPTV
+      if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+        let redirectUrl = proxyRes.headers.location;
+        if (!redirectUrl.startsWith('http')) {
+          redirectUrl = new URL(redirectUrl, targetUrl).href;
+        }
+        return res.redirect(`/api/iptv/stream?url=${encodeURIComponent(redirectUrl)}`);
+      }
+
+      const contentType = proxyRes.headers['content-type'] || '';
+      res.setHeader('Access-Control-Allow-Origin', '*');
+
+      // Si es una lista M3U8, leemos el texto y reescribimos los enlaces internos
+      const isM3U8 = targetUrl.includes('.m3u8') || contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL');
+
+      if (isM3U8) {
+        let rawData = '';
+        proxyRes.setEncoding('utf8');
+        proxyRes.on('data', chunk => { rawData += chunk; });
+        proxyRes.on('end', () => {
+          res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+          const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf('/') + 1);
+
+          // Reescribir cada línea que sea un sub-manifiesto o segmento TS
+          const rewritten = rawData.split('\n').map(line => {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) return line;
+
+            let segmentUrl = trimmed;
+            if (!segmentUrl.startsWith('http://') && !segmentUrl.startsWith('https://')) {
+              segmentUrl = baseUrl + segmentUrl;
+            }
+            return `/api/iptv/stream?url=${encodeURIComponent(segmentUrl)}`;
+          }).join('\n');
+
+          res.send(rewritten);
+        });
+      } else {
+        // Si es un segmento binario de vídeo (.ts / .aac), enviarlo directo
+        res.writeHead(proxyRes.statusCode || 200, {
+          'Content-Type': contentType || 'video/MP2T',
+          'Access-Control-Allow-Origin': '*'
+        });
+        proxyRes.pipe(res);
+      }
     });
 
     proxyReq.on('error', (err) => {
-      console.error('Error proxy stream:', err.message);
+      console.error('Error stream proxy:', err.message);
       if (!res.headersSent) res.status(502).send('Error conectando al stream');
     });
   } catch (err) {
@@ -54,7 +95,7 @@ app.get('/api/iptv/stream', (req, res) => {
   }
 });
 
-// Sugerencias de búsqueda YouTube
+// Autocompletado YouTube
 app.get('/api/suggest', async (req, res) => {
   const query = req.query.q;
   if (!query || !query.trim()) return res.json({ suggestions: [] });
@@ -69,7 +110,7 @@ app.get('/api/suggest', async (req, res) => {
   }
 });
 
-// Búsqueda de YouTube
+// Búsqueda YouTube
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json({ results: [] });
