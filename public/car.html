@@ -6,10 +6,7 @@
   <title>Tesla Motion All-in-One</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body, html {
-      width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff;
-      -webkit-user-select: none; user-select: none;
-    }
+    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff; }
     
     #overlay {
       position: fixed; inset: 0; z-index: 999;
@@ -31,11 +28,13 @@
       box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4); text-decoration: none; display: block;
     }
 
-    /* Blindaje de contenedor: dimensiones fijas y aceleración por GPU */
-    #yt-wrapper {
+    /* Reproductor Nativo HTML5 sin bloqueo de fotogramas */
+    #native-video-wrapper {
       position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 10;
-      transform: translateZ(0); will-change: transform;
-      pointer-events: auto;
+      background: #000; display: flex; align-items: center; justify-content: center;
+    }
+    #main-video {
+      width: 100%; height: 100%; object-fit: contain; background: #000;
     }
     
     #status-pill {
@@ -89,15 +88,10 @@
 </head>
 <body>
 
-  <!-- Audio puente silencioso para registrar la sesión multimedia con el sistema del auto -->
-  <audio id="keepAliveAudio" loop playsinline preload="auto">
-    <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=" type="audio/wav">
-  </audio>
-
   <div id="overlay">
     <div class="badge">SISTEMA INTEGRADO TESLA MOTION</div>
     <h1>Pantalla Continua en Ruta</h1>
-    <p>Activa la sesión prioritaria de audio y video para evitar pausas al cambiar de marcha.</p>
+    <p>Reproducción de video nativa continua sin congelamiento de fotogramas.</p>
     
     <div class="room-box">
       <span>Código de Enlace</span>
@@ -105,14 +99,15 @@
     </div>
 
     <div class="btn-container">
-      <button class="btn-primary" onclick="startDisplay()">SOY PASAJERO - ACTIVAR MODO CONTINUO</button>
+      <button class="btn-primary" onclick="startDisplay()">SOY PASAJERO O ESTACIONADO</button>
     </div>
   </div>
 
   <div id="status-pill">Iniciando...</div>
 
-  <div id="yt-wrapper">
-    <div id="player"></div>
+  <!-- Contenedor Nativo HTML5 -->
+  <div id="native-video-wrapper">
+    <video id="main-video" playsinline webkit-playsinline autoplay controls></video>
   </div>
 
   <button id="toggle-menu-btn" onclick="toggleDrawer()">
@@ -134,7 +129,7 @@
 
     <div class="drawer-results" id="drawerResults">
       <div style="font-size: 12px; color: #888; text-align: center; margin-top: 20px;">
-        Selecciona un contenido para reproducir.
+        Selecciona un video para transmitir.
       </div>
     </div>
 
@@ -147,32 +142,14 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     const ROOM_ID = 'TSLA-77';
-    let ytPlayer;
     let suggestDebounce = null;
     let userPaused = false;
-    let keeperTimer = null;
     const statusPill = document.getElementById('status-pill');
     const drawer = document.getElementById('side-drawer');
-    const keepAliveAudio = document.getElementById('keepAliveAudio');
+    const video = document.getElementById('main-video');
     const socket = io();
-
-    // 1. Blindaje contra los eventos de pérdida de foco del sistema al pasar a Drive
-    window.addEventListener('blur', (e) => {
-      e.stopImmediatePropagation();
-    }, true);
-
-    document.addEventListener('visibilitychange', (e) => {
-      if (document.hidden) {
-        e.stopImmediatePropagation();
-        // Si el auto oculta temporalmente el contexto de primer plano, reactivamos
-        if (ytPlayer && !userPaused && ytPlayer.playVideo) {
-          ytPlayer.playVideo();
-        }
-      }
-    }, true);
 
     function showStatus(msg) {
       statusPill.textContent = msg;
@@ -184,95 +161,34 @@
       drawer.classList.toggle('open');
     }
 
-    function onYouTubeIframeAPIReady() {
-      ytPlayer = new YT.Player('player', {
-        height: '100%',
-        width: '100%',
-        videoId: '5qap5aO4i9A',
-        playerVars: {
-          'autoplay': 1,
-          'controls': 1,
-          'playsinline': 1,
-          'rel': 0,
-          'disablekb': 1,
-          'modestbranding': 1,
-          'fs': 0
-        },
-        events: {
-          'onStateChange': onPlayerStateChange
-        }
-      });
-    }
-
-    function setupMediaSession() {
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: 'Tesla Motion Stream',
-          artist: 'Copiloto Activo',
-          album: 'Pantalla Continua'
-        });
-
-        navigator.mediaSession.playbackState = 'playing';
-
-        navigator.mediaSession.setActionHandler('play', () => {
-          userPaused = false;
-          if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
-        });
-
-        navigator.mediaSession.setActionHandler('pause', () => {
-          userPaused = true;
-          if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-        });
-      }
-    }
-
-    function onPlayerStateChange(event) {
-      // Si entra en pausa pero el usuario NO la ordenó (evento provocado al meter Drive)
-      if (event.data === YT.PlayerState.PAUSED && !userPaused) {
-        if (ytPlayer && ytPlayer.playVideo) {
-          ytPlayer.playVideo();
-        }
-      }
-      if (event.data === YT.PlayerState.PLAYING) {
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.playbackState = 'playing';
-        }
-      }
-    }
-
     function startDisplay() {
       document.getElementById('overlay').style.display = 'none';
       socket.emit('join-room', ROOM_ID);
       userPaused = false;
-
-      // Iniciar el canal de audio continuo para mantener el foco del subsistema de Tesla
-      keepAliveAudio.play().catch(() => {});
-      setupMediaSession();
-
-      if (ytPlayer && ytPlayer.playVideo) {
-        ytPlayer.playVideo();
-      }
-
-      // Verificación en bucle cada 250ms para recuperación inmediata sin bache
-      clearInterval(keeperTimer);
-      keeperTimer = setInterval(() => {
-        if (ytPlayer && ytPlayer.getPlayerState && !userPaused) {
-          const state = ytPlayer.getPlayerState();
-          if (state === YT.PlayerState.PAUSED || state === 2) {
-            ytPlayer.playVideo();
-          }
-        }
-      }, 250);
-
+      video.play().catch(() => {});
       showStatus('Modo Continuo Listo');
     }
 
-    function playYtVideo(videoId) {
-      userPaused = false;
-      if (ytPlayer && ytPlayer.loadVideoById) {
-        ytPlayer.loadVideoById(videoId);
+    // Cargar stream nativo sin pasar por el iframe de YouTube
+    async function playVideoById(videoId) {
+      showStatus('Preparando transmisión...');
+      try {
+        const res = await fetch(`/api/video-stream?id=${encodeURIComponent(videoId)}`);
+        const data = await res.json();
+        
+        if (data.streamUrl) {
+          video.src = data.streamUrl;
+          video.play().then(() => {
+            showStatus(data.title ? data.title.substring(0, 30) : 'En Vivo');
+          }).catch(err => {
+            console.warn('Requiere interacción táctil para reproducir');
+          });
+        } else {
+          showStatus('Error al cargar video nativo');
+        }
+      } catch (e) {
+        showStatus('Error de conexión');
       }
-      showStatus('Cargando señal...');
     }
 
     function handleDrawerSuggest(val) {
@@ -323,7 +239,7 @@
           const card = document.createElement('div');
           card.className = 'item-card';
           card.onclick = () => {
-            playYtVideo(v.videoId);
+            playVideoById(v.videoId);
             emitCommand('playVideo', { videoId: v.videoId });
             toggleDrawer();
           };
@@ -348,16 +264,15 @@
     }
 
     socket.on('execute-command', ({ action, payload }) => {
-      if (action === 'playVideo') playYtVideo(payload.videoId);
+      if (action === 'playVideo') playVideoById(payload.videoId);
       else if (action === 'pause') {
         userPaused = true;
-        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
+        video.pause();
       } else if (action === 'play') {
         userPaused = false;
-        if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
-      } else if (action === 'seek' && ytPlayer) {
-        const cur = ytPlayer.getCurrentTime();
-        ytPlayer.seekTo(cur + payload.seconds, true);
+        video.play();
+      } else if (action === 'seek') {
+        video.currentTime += payload.seconds;
       }
     });
   </script>
