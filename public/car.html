@@ -28,12 +28,16 @@
       box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4); text-decoration: none; display: block;
     }
 
-    #native-video-wrapper {
+    /* Contenedor forzado con transformación de GPU activa */
+    #yt-wrapper {
       position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 10;
-      background: #000; display: flex; align-items: center; justify-content: center;
+      transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
+      perspective: 1000px;
     }
-    #main-video {
-      width: 100%; height: 100%; object-fit: contain; background: #000;
+
+    #player {
+      width: 100%; height: 100%;
     }
     
     #status-pill {
@@ -90,7 +94,7 @@
   <div id="overlay">
     <div class="badge">SISTEMA INTEGRADO TESLA MOTION</div>
     <h1>Pantalla Continua en Ruta</h1>
-    <p>Toca para autorizar la reproducción continua nativa y desbloquear el audio.</p>
+    <p>Toca para activar el audio y el motor de dibujo continuo sin congelamiento en Drive.</p>
     
     <div class="room-box">
       <span>Código de Enlace</span>
@@ -104,8 +108,8 @@
 
   <div id="status-pill">Iniciando...</div>
 
-  <div id="native-video-wrapper">
-    <video id="main-video" playsinline webkit-playsinline autoplay controls preload="auto"></video>
+  <div id="yt-wrapper">
+    <div id="player"></div>
   </div>
 
   <button id="toggle-menu-btn" onclick="toggleDrawer()">
@@ -127,7 +131,7 @@
 
     <div class="drawer-results" id="drawerResults">
       <div style="font-size: 12px; color: #888; text-align: center; margin-top: 20px;">
-        Selecciona un video para transmitir.
+        Selecciona un video para reproducir.
       </div>
     </div>
 
@@ -140,13 +144,15 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     const ROOM_ID = 'TSLA-77';
+    let ytPlayer;
     let suggestDebounce = null;
     let userPaused = false;
+    let keepAliveLoop = null;
     const statusPill = document.getElementById('status-pill');
     const drawer = document.getElementById('side-drawer');
-    const video = document.getElementById('main-video');
     const socket = io();
 
     function showStatus(msg) {
@@ -159,44 +165,75 @@
       drawer.classList.toggle('open');
     }
 
+    function onYouTubeIframeAPIReady() {
+      ytPlayer = new YT.Player('player', {
+        height: '100%',
+        width: '100%',
+        videoId: '5qap5aO4i9A',
+        playerVars: {
+          'autoplay': 1,
+          'controls': 1,
+          'playsinline': 1,
+          'rel': 0,
+          'disablekb': 1,
+          'modestbranding': 1,
+          'origin': window.location.origin
+        },
+        events: {
+          'onStateChange': onPlayerStateChange
+        }
+      });
+    }
+
+    // EL SECRETO: Forzar el repintado de Chromium para que no congele el cuadro
+    function forceRepaint() {
+      const el = document.getElementById('yt-wrapper');
+      if (el) {
+        el.style.transform = el.style.transform === 'translate3d(0px, 0px, 0px)' 
+          ? 'translate3d(0px, 0.5px, 0px)' 
+          : 'translate3d(0px, 0px, 0px)';
+      }
+    }
+
+    function onPlayerStateChange(event) {
+      // Si el auto intenta pausar al poner Drive
+      if (event.data === YT.PlayerState.PAUSED && !userPaused) {
+        if (ytPlayer && ytPlayer.playVideo) {
+          ytPlayer.playVideo();
+          forceRepaint();
+        }
+      }
+    }
+
     function startDisplay() {
       document.getElementById('overlay').style.display = 'none';
       socket.emit('join-room', ROOM_ID);
       userPaused = false;
-      // Desbloqueo inicial del contexto de medios
-      video.play().catch(() => {});
-      showStatus('Modo Continuo Listo');
+
+      if (ytPlayer && ytPlayer.playVideo) {
+        ytPlayer.playVideo();
+      }
+
+      // Loop continuo cada 1 segundo para mantener la capa de dibujo activa en marcha
+      clearInterval(keepAliveLoop);
+      keepAliveLoop = setInterval(() => {
+        if (!userPaused) {
+          forceRepaint();
+          if (ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === 2) {
+            ytPlayer.playVideo();
+          }
+        }
+      }, 1000);
+
+      showStatus('Modo Ruta Activo');
     }
 
-    async function playVideoById(videoId) {
-      showStatus('Cargando transmisión nativa...');
-      try {
-        const res = await fetch(`/api/video-stream?id=${encodeURIComponent(videoId)}`);
-        const data = await res.json();
-        
-        if (data.streamUrl) {
-          video.src = data.streamUrl;
-          video.load();
-          
-          const playPromise = video.play();
-          if (playPromise !== undefined) {
-            playPromise.then(() => {
-              showStatus(data.title ? data.title.substring(0, 32) : 'Reproduciendo');
-            }).catch(() => {
-              // Si el navegador de Tesla retiene el autoplay, reproducir silenciado y luego abrir volumen
-              video.muted = true;
-              video.play().then(() => {
-                video.muted = false;
-                showStatus(data.title ? data.title.substring(0, 32) : 'Reproduciendo');
-              });
-            });
-          }
-        } else {
-          showStatus('Error al resolver enlace del video');
-        }
-      } catch (e) {
-        showStatus('Error de conexión');
+    function playVideoById(videoId) {
+      userPaused = false;
+      if (ytPlayer && ytPlayer.loadVideoById) {
+        ytPlayer.loadVideoById(videoId);
       }
+      showStatus('Cargando video...');
     }
 
     function handleDrawerSuggest(val) {
@@ -275,12 +312,13 @@
       if (action === 'playVideo') playVideoById(payload.videoId);
       else if (action === 'pause') {
         userPaused = true;
-        video.pause();
+        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
       } else if (action === 'play') {
         userPaused = false;
-        video.play();
-      } else if (action === 'seek') {
-        video.currentTime += payload.seconds;
+        if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
+      } else if (action === 'seek' && ytPlayer) {
+        const cur = ytPlayer.getCurrentTime();
+        ytPlayer.seekTo(cur + payload.seconds, true);
       }
     });
   </script>
