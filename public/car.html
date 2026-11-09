@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Tesla Motion - IPTV & YouTube Hub</title>
+  <title>Tesla Motion</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff; }
 
-    /* Diálogo de Pasajero / Desbloqueo de Audio */
     #overlay {
       position: fixed; inset: 0; z-index: 999;
       background: #0b0c0e; display: flex; flex-direction: column;
@@ -18,18 +17,12 @@
     h1 { font-size: 26px; margin-bottom: 8px; font-weight: 700; letter-spacing: -0.5px; }
     p { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 440px; line-height: 1.4; }
 
-    .room-box { background: #18191d; border: 1px solid #2a2c34; padding: 12px 28px; border-radius: 12px; margin-bottom: 24px; }
-    .room-box span { font-size: 11px; color: #888; display: block; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
-    .room-box strong { font-size: 32px; letter-spacing: 4px; color: #e82127; }
-
     .btn-auth {
       background: #e82127; color: #fff; border: none; padding: 16px 36px;
       font-size: 16px; font-weight: 700; border-radius: 12px; cursor: pointer;
       box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4);
     }
-    .btn-auth:active { transform: scale(0.98); }
 
-    /* Hub Principal de Selección */
     #home-hub {
       position: fixed; inset: 0; z-index: 100;
       background: #0a0a0c; display: none; flex-direction: column;
@@ -38,41 +31,29 @@
     .hub-title { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
     .hub-sub { font-size: 14px; color: #777; margin-bottom: 36px; }
 
-    .hub-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
-      width: 100%; max-width: 680px;
-    }
+    .hub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%; max-width: 680px; }
     .hub-card {
       background: #151518; border: 1px solid #28282e; border-radius: 16px;
       padding: 36px 20px; display: flex; flex-direction: column;
       align-items: center; justify-content: center; cursor: pointer; text-align: center;
     }
-    .hub-card:active { transform: scale(0.97); border-color: #e82127; }
+    .hub-card:active { border-color: #e82127; }
     .hub-icon { font-size: 48px; margin-bottom: 16px; }
     .hub-card-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
     .hub-card-desc { font-size: 12px; color: #888; }
 
-    /* Capa de Renderizado Desacoplada estilo MotionStream */
-    #hidden-video {
-      position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0.001; pointer-events: none;
-    }
-    #render-canvas {
-      position: fixed; inset: 0; width: 100vw; height: 100vh;
-      object-fit: contain; background: #000; z-index: 10;
-    }
+    #hidden-video { position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0.001; pointer-events: none; }
+    #render-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; object-fit: contain; background: #000; z-index: 10; }
 
-    /* Barra de Navegación Permanente */
     #nav-bar {
-      position: absolute; bottom: 24px; right: 24px; z-index: 150;
-      display: none; gap: 12px;
+      position: absolute; bottom: 24px; right: 24px; z-index: 150; display: none; gap: 12px;
     }
     .nav-action-btn {
       background: rgba(24, 24, 28, 0.9); color: #fff; border: 1px solid #333;
       padding: 12px 20px; border-radius: 30px; font-size: 14px; font-weight: 600;
-      cursor: pointer; backdrop-filter: blur(10px); display: flex; align-items: center; gap: 8px;
+      cursor: pointer; backdrop-filter: blur(10px);
     }
 
-    /* Cajón de Canales y Búsqueda */
     #side-drawer {
       position: absolute; top: 0; right: 0; width: 480px; height: 100vh;
       background: rgba(18, 18, 22, 0.98); backdrop-filter: blur(20px);
@@ -100,12 +81,9 @@
       background: #18181c; border: 1px solid #333; border-radius: 10px;
       max-height: 200px; overflow-y: auto; z-index: 250; display: none;
     }
-    .suggest-item {
-      padding: 10px 14px; border-bottom: 1px solid #242428; cursor: pointer; font-size: 13px;
-    }
-    .suggest-item:hover, .suggest-item:active { background: #25252b; color: #e82127; }
+    .suggest-item { padding: 10px 14px; border-bottom: 1px solid #242428; cursor: pointer; font-size: 13px; }
+    .suggest-item:hover { background: #25252b; color: #e82127; }
 
-    /* Filtros IPTV (Todos / Favoritos) */
     .filter-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
     .filter-btn {
       flex: 1; padding: 10px 12px; background: #1c1c20; border: 1px solid #28282e;
@@ -115,10 +93,7 @@
 
     .results-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 
-    .m3u-config {
-      background: #141418; border: 1px dashed #333; border-radius: 10px;
-      padding: 14px; margin-bottom: 14px;
-    }
+    .m3u-config { background: #141418; border: 1px dashed #333; border-radius: 10px; padding: 12px; margin-bottom: 14px; }
     .channel-item {
       display: flex; justify-content: space-between; align-items: center;
       background: #1c1c20; border: 1px solid #28282e; padding: 12px 14px; border-radius: 10px; cursor: pointer;
@@ -131,7 +106,6 @@
       display: flex; gap: 12px; background: #18181c; border: 1px solid #28282e;
       border-radius: 10px; padding: 8px; cursor: pointer;
     }
-    .yt-card:active { border-color: #e82127; }
     .yt-card img { width: 120px; height: 68px; object-fit: cover; border-radius: 6px; }
     .yt-info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
     .yt-title { font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -152,12 +126,6 @@
     <div class="badge">SISTEMA TESLA MOTION</div>
     <h1>Paso 1: Pon el vehículo en Drive (D)</h1>
     <p>Para activar el modo continuo sin pantalla negra, pasa primero la palanca a Drive y luego pulsa el botón.</p>
-    
-    <div class="room-box">
-      <span>Código de Enlace</span>
-      <strong id="display-room">TSLA-77</strong>
-    </div>
-
     <button class="btn-auth" onclick="unlockHub()">YA ESTOY EN DRIVE • INICIAR</button>
   </div>
 
@@ -169,13 +137,13 @@
       <div class="hub-card" onclick="openSection('iptv')">
         <div class="hub-icon">📺</div>
         <div class="hub-card-title">Televisión en Vivo</div>
-        <div class="hub-card-desc">Canales precargados y lista de favoritos</div>
+        <div class="hub-card-desc">Canales sincronizados y favoritos</div>
       </div>
 
       <div class="hub-card" onclick="openSection('youtube')">
         <div class="hub-icon">▶️</div>
         <div class="hub-card-title">YouTube</div>
-        <div class="hub-card-desc">Búsqueda directa con autocompletado</div>
+        <div class="hub-card-desc">Búsqueda directa y continua</div>
       </div>
     </div>
   </div>
@@ -184,12 +152,8 @@
   <canvas id="render-canvas"></canvas>
 
   <div id="nav-bar">
-    <button class="nav-action-btn" onclick="showHub()">
-      <span>🏠</span> Menú Principal
-    </button>
-    <button class="nav-action-btn" onclick="toggleDrawer()">
-      <span>🔍</span> Buscar / Canales
-    </button>
+    <button class="nav-action-btn" onclick="showHub()">🏠 Menú Principal</button>
+    <button class="nav-action-btn" onclick="toggleDrawer()">🔍 Canales / Buscar</button>
   </div>
 
   <div id="side-drawer">
@@ -201,7 +165,7 @@
     <div class="search-wrapper">
       <div class="search-row">
         <input type="text" id="streamInput" placeholder="Buscar..." autocomplete="off">
-        <button id="btnSearchSubmit" onclick="triggerSearch()">Buscar</button>
+        <button onclick="triggerSearch()">Buscar</button>
       </div>
       <div id="suggest-box"></div>
     </div>
@@ -216,17 +180,15 @@
 
   <div id="status-pill">Listo</div>
 
-  <script src="/socket.io/socket.io.js"></script>
   <script>
-    const ROOM_ID = 'TSLA-77';
     let userAuthorized = false;
     let currentMode = 'none';
     let currentIptvTab = 'all';
     let suggestDebounce = null;
     let hlsInstance = null;
 
-    let savedChannels = [];
-    let favoriteIds = [];
+    let serverChannels = [];
+    let serverFavorites = [];
 
     const overlay = document.getElementById('overlay');
     const homeHub = document.getElementById('home-hub');
@@ -241,18 +203,14 @@
     const drawerContent = document.getElementById('drawerContent');
     const iptvFilterBar = document.getElementById('iptv-filter-bar');
 
-    const socket = io();
-
     function showStatus(msg) {
       statusPill.textContent = msg;
       statusPill.style.opacity = '1';
       setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
     }
 
-    // Pipeline continuo Canvas - Tesla no puede suspender este render en Drive
     function renderPipeline() {
       if (!userAuthorized) return;
-
       if (video.readyState >= 2 && !video.paused && !video.ended) {
         if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
           if (video.videoWidth > 0 && video.videoHeight > 0) {
@@ -262,7 +220,6 @@
         }
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       }
-
       if ('requestVideoFrameCallback' in video) {
         video.requestVideoFrameCallback(renderPipeline);
       } else {
@@ -274,7 +231,6 @@
       overlay.style.display = 'none';
       homeHub.style.display = 'flex';
       userAuthorized = true;
-      socket.emit('join-room', ROOM_ID);
 
       if ('requestVideoFrameCallback' in video) {
         video.requestVideoFrameCallback(renderPipeline);
@@ -282,7 +238,18 @@
         requestAnimationFrame(renderPipeline);
       }
 
-      loadSavedData();
+      syncIPTVData();
+    }
+
+    function syncIPTVData() {
+      fetch('/api/iptv/data')
+        .then(r => r.json())
+        .then(data => {
+          serverChannels = data.channels || [];
+          serverFavorites = data.favorites || [];
+          updateFavCount();
+          if (currentMode === 'iptv') displayChannels();
+        }).catch(() => {});
     }
 
     function openSection(mode) {
@@ -308,15 +275,11 @@
       toggleDrawer();
     }
 
-    // Autocompletado de YouTube
     streamInput.addEventListener('input', () => {
       const q = streamInput.value.trim();
       clearTimeout(suggestDebounce);
       if (currentMode === 'youtube') {
-        if (q.length < 2) {
-          suggestBox.style.display = 'none';
-          return;
-        }
+        if (q.length < 2) { suggestBox.style.display = 'none'; return; }
         suggestDebounce = setTimeout(() => {
           fetch(`/api/yt-suggest?q=${encodeURIComponent(q)}`)
             .then(r => r.json())
@@ -326,8 +289,7 @@
                 <div class="suggest-item" onclick="selectSuggestion('${text.replace(/'/g, "\\'")}')">🔍 ${text}</div>
               `).join('');
               suggestBox.style.display = 'block';
-            })
-            .catch(() => { suggestBox.style.display = 'none'; });
+            }).catch(() => { suggestBox.style.display = 'none'; });
         }, 180);
       } else if (currentMode === 'iptv') {
         filterLocalChannels(q);
@@ -346,13 +308,13 @@
       if (!q) return;
 
       if (currentMode === 'youtube') {
-        showStatus('Buscando en YouTube...');
-        drawerContent.innerHTML = '<div style="color:#aaa; text-align:center; padding:30px;">Cargando resultados...</div>';
+        showStatus('Buscando...');
+        drawerContent.innerHTML = '<div style="color:#aaa; text-align:center; padding:30px;">Cargando...</div>';
         fetch(`/api/yt-search?q=${encodeURIComponent(q)}`)
           .then(r => r.json())
           .then(videos => {
             if (!videos.length) {
-              drawerContent.innerHTML = '<div style="color:#aaa; text-align:center; padding:30px;">No se encontraron videos.</div>';
+              drawerContent.innerHTML = '<div style="color:#aaa; text-align:center; padding:30px;">Sin resultados.</div>';
               return;
             }
             drawerContent.innerHTML = videos.map(v => `
@@ -364,20 +326,12 @@
                 </div>
               </div>
             `).join('');
-          })
-          .catch(() => {
-            drawerContent.innerHTML = '<div style="color:#e82127; text-align:center; padding:30px;">Error al consultar YouTube.</div>';
-          });
+          }).catch(() => { drawerContent.innerHTML = '<div style="color:#e82127; text-align:center; padding:30px;">Error al buscar.</div>'; });
       } else if (currentMode === 'iptv') {
-        if (q.startsWith('http')) {
-          saveAndParseM3U(q);
-        } else {
-          filterLocalChannels(q);
-        }
+        filterLocalChannels(q);
       }
     }
 
-    // Reproductor Universal con Desacoplamiento de Pausa en Marcha
     function playMediaStream(url, title) {
       showStatus('Sintonizando: ' + title);
       toggleDrawer();
@@ -406,92 +360,60 @@
       }
     }
 
-    // Auto-recuperación si Tesla emite pausa en marcha
     video.addEventListener('pause', () => {
       if (userAuthorized && !video.ended && currentMode !== 'none') {
         setTimeout(() => { if (userAuthorized) forcePlay(); }, 120);
       }
     });
 
-    // ==================== GESTIÓN DE CANALES IPTV Y FAVORITOS ====================
     function renderM3UManager() {
-      const savedUrl = localStorage.getItem('TSLA_M3U_URL') || '';
       drawerContent.innerHTML = `
         <div class="m3u-config">
-          <div style="font-size:12px; font-weight:700; margin-bottom:8px;">Lista M3U / M3U8 Configurada</div>
+          <div style="font-size:12px; font-weight:700; margin-bottom:8px;">Lista M3U Sincronizada</div>
           <div style="display:flex; gap:6px;">
-            <input type="text" id="m3uUrlInput" value="${savedUrl}" placeholder="Pega tu enlace M3U aquí..." style="flex:1; padding:8px 10px; border-radius:6px; border:1px solid #333; background:#000; color:#fff; font-size:12px;">
-            <button onclick="saveAndParseM3U(document.getElementById('m3uUrlInput').value)" style="background:#e82127; border:none; color:#fff; padding:8px 12px; border-radius:6px; font-weight:700; font-size:12px; cursor:pointer;">Cargar</button>
+            <input type="text" id="m3uUrlInput" placeholder="Pega tu enlace M3U aquí..." style="flex:1; padding:8px 10px; border-radius:6px; border:1px solid #333; background:#000; color:#fff; font-size:12px;">
+            <button onclick="loadM3UServer()" style="background:#e82127; border:none; color:#fff; padding:8px 12px; border-radius:6px; font-weight:700; font-size:12px; cursor:pointer;">Cargar</button>
           </div>
         </div>
         <div id="m3uChannelsList" style="display:flex; flex-direction:column; gap:8px;"></div>
       `;
-      updateFavCount();
       displayChannels();
     }
 
-    function saveAndParseM3U(url) {
-      if (!url || !url.trim()) return;
-      showStatus('Descargando lista IPTV...');
-      localStorage.setItem('TSLA_M3U_URL', url.trim());
-
-      fetch(url.trim())
-        .then(r => r.text())
-        .then(text => parseM3UContent(text))
-        .catch(() => showStatus('Error descargando la lista M3U'));
+    function loadM3UServer() {
+      const url = document.getElementById('m3uUrlInput').value.trim();
+      if (!url) return;
+      showStatus('Descargando lista en el servidor...');
+      fetch('/api/iptv/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      })
+      .then(r => r.json())
+      .then(res => {
+        showStatus(`Cargados ${res.count} canales`);
+        syncIPTVData();
+      }).catch(() => showStatus('Error cargando lista'));
     }
 
-    function parseM3UContent(content) {
-      const lines = content.split('\n');
-      const list = [];
-      let currentName = '';
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line.startsWith('#EXTINF:')) {
-          const parts = line.split(',');
-          currentName = parts[parts.length - 1].trim();
-        } else if (line.startsWith('http')) {
-          list.push({
-            id: 'ch_' + list.length,
-            name: currentName || `Canal ${list.length + 1}`,
-            url: line
-          });
-          currentName = '';
-        }
-      }
-
-      savedChannels = list;
-      try { localStorage.setItem('TSLA_M3U_CHANNELS', JSON.stringify(list.slice(0, 500))); } catch(e){}
-      showStatus(`Cargados ${list.length} canales`);
-      displayChannels();
-    }
-
-    function loadSavedData() {
-      try {
-        const rawCh = localStorage.getItem('TSLA_M3U_CHANNELS');
-        if (rawCh) savedChannels = JSON.parse(rawCh);
-        const rawFavs = localStorage.getItem('TSLA_FAVORITES');
-        if (rawFavs) favoriteIds = JSON.parse(rawFavs);
-      } catch(e){}
-    }
-
-    function toggleFavorite(id, e) {
-      e.stopPropagation();
-      const idx = favoriteIds.indexOf(id);
-      if (idx === -1) {
-        favoriteIds.push(id);
-      } else {
-        favoriteIds.splice(idx, 1);
-      }
-      try { localStorage.setItem('TSLA_FAVORITES', JSON.stringify(favoriteIds)); } catch(e){}
-      updateFavCount();
-      displayChannels();
+    function toggleFavorite(url, name, e) {
+      if (e) e.stopPropagation();
+      fetch('/api/iptv/favorite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, name })
+      })
+      .then(r => r.json())
+      .then(data => {
+        serverFavorites = data.favorites;
+        updateFavCount();
+        displayChannels();
+      }).catch(() => {});
     }
 
     function updateFavCount() {
       const el = document.getElementById('favCount');
-      if (el) el.textContent = favoriteIds.length;
+      if (el) el.textContent = serverFavorites.length;
     }
 
     function setIptvTab(tab) {
@@ -505,25 +427,24 @@
       const cont = document.getElementById('m3uChannelsList');
       if (!cont) return;
 
-      let list = listToUse || savedChannels;
-      if (currentIptvTab === 'favs') {
-        list = list.filter(c => favoriteIds.includes(c.id));
-      }
+      let list = (currentIptvTab === 'favs') ? serverFavorites : (listToUse || serverChannels);
 
-      if (!list.length) {
-        cont.innerHTML = `<div style="color:#777; font-size:12px; text-align:center; padding:30px;">
-          ${currentIptvTab === 'favs' ? 'No tienes canales favoritos guardados. Toca la estrella ⭐ de un canal para fijarlo.' : 'Sin canales cargados. Pega tu lista M3U arriba.'}
+      if (!list || !list.length) {
+        cont.innerHTML = `<div style="color:#888; font-size:13px; text-align:center; padding:30px;">
+          ${currentIptvTab === 'favs' ? 'No tienes canales en favoritos. Toca la estrella ⭐ en "Todos" para fijarlos.' : 'Cargando canales desde el servidor...'}
         </div>`;
         return;
       }
 
-      cont.innerHTML = list.slice(0, 100).map(c => {
-        const isFav = favoriteIds.includes(c.id);
+      cont.innerHTML = list.slice(0, 150).map(c => {
+        const isFav = serverFavorites.some(f => f.url === c.url);
+        const safeUrl = encodeURIComponent(c.url);
+        const safeName = c.name.replace(/"/g, '&quot;').replace(/'/g, '');
         return `
-          <div class="channel-item" onclick="playMediaStream('${c.url.replace(/'/g, "\\'")}', '${c.name.replace(/'/g, "\\'")}')">
-            <div style="font-size:13px; font-weight:600; flex:1;">${c.name}</div>
+          <div class="channel-item" onclick="playMediaStream(decodeURIComponent('${safeUrl}'), '${safeName}')">
+            <div style="font-size:13px; font-weight:600; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeName}</div>
             <div style="display:flex; align-items:center; gap:8px;">
-              <span class="fav-star ${isFav ? 'active' : ''}" onclick="toggleFavorite('${c.id}', event)">⭐</span>
+              <span class="fav-star ${isFav ? 'active' : ''}" onclick="toggleFavorite(decodeURIComponent('${safeUrl}'), '${safeName}', event)">⭐</span>
               <span style="font-size:11px; color:#e82127; font-weight:700;">VER</span>
             </div>
           </div>
@@ -532,10 +453,7 @@
     }
 
     function filterLocalChannels(q) {
-      let list = savedChannels;
-      if (currentIptvTab === 'favs') {
-        list = list.filter(c => favoriteIds.includes(c.id));
-      }
+      let list = (currentIptvTab === 'favs') ? serverFavorites : serverChannels;
       const filtered = list.filter(c => c.name.toLowerCase().includes(q.toLowerCase()));
       displayChannels(filtered);
     }
@@ -547,18 +465,11 @@
       sideDrawer.classList.remove('open');
       navBar.style.display = 'none';
       homeHub.style.display = 'flex';
-      showStatus('Menú Principal');
     }
 
     function toggleDrawer() {
       sideDrawer.classList.toggle('open');
     }
-
-    socket.on('execute-command', ({ action, payload }) => {
-      if (action === 'playStream') playMediaStream(payload.url, 'Control Remoto');
-      else if (action === 'pause') video.pause();
-      else if (action === 'play') forcePlay();
-    });
   </script>
 </body>
 </html>
