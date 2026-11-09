@@ -3,156 +3,197 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Tesla Motion - OGV Software Engine</title>
+  <title>Tesla Motion - Portal</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff; }
-    
+    body, html { width: 100vw; height: 100vh; overflow: hidden; background: #0a0a0c; color: #fff; }
+
+    /* Overlay inicial de autorización */
     #overlay {
       position: fixed; inset: 0; z-index: 999;
-      background: #0b0c0e; display: flex; flex-direction: column;
+      background: #0f0f11; display: flex; flex-direction: column;
       align-items: center; justify-content: center; text-align: center; padding: 24px;
     }
-    .badge { background: #1c1d22; border: 1px solid #2e3038; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #aaa; margin-bottom: 14px; }
+    .badge { background: #222; border: 1px solid #333; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #aaa; margin-bottom: 14px; }
     h1 { font-size: 26px; margin-bottom: 8px; font-weight: 700; letter-spacing: -0.5px; }
     p { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 440px; line-height: 1.4; }
-    
-    .room-box { background: #18191d; border: 1px solid #2a2c34; padding: 12px 28px; border-radius: 12px; margin-bottom: 24px; }
+
+    .room-box { background: #1c1c1e; border: 1px solid #2c2c2e; padding: 12px 28px; border-radius: 12px; margin-bottom: 24px; }
     .room-box span { font-size: 11px; color: #888; display: block; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
     .room-box strong { font-size: 32px; letter-spacing: 4px; color: #e82127; }
-    
-    .btn-primary {
+
+    .btn-auth {
       background: #e82127; color: #fff; border: none; padding: 16px 32px;
       font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer;
-      box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4); display: block;
+      box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4);
     }
-    .btn-primary:active { transform: scale(0.98); }
+    .btn-auth:active { transform: scale(0.98); }
 
-    /* Contenedor del reproductor OGV (Canvas WebGL nativo) */
+    /* Hub de Selección Principal (YouTube / TV) */
+    #home-hub {
+      position: fixed; inset: 0; z-index: 100;
+      background: #0a0a0c; display: none; flex-direction: column;
+      align-items: center; justify-content: center; padding: 30px;
+    }
+    .hub-title { font-size: 28px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
+    .hub-sub { font-size: 14px; color: #777; margin-bottom: 36px; }
+
+    .hub-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+      width: 100%; max-width: 680px;
+    }
+
+    .hub-card {
+      background: #151518; border: 1px solid #28282e; border-radius: 16px;
+      padding: 32px 20px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; cursor: pointer;
+      transition: all 0.2s ease; text-align: center;
+    }
+    .hub-card:active { transform: scale(0.97); border-color: #e82127; }
+    .hub-icon { font-size: 48px; margin-bottom: 16px; }
+    .hub-card-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .hub-card-desc { font-size: 12px; color: #888; }
+
+    /* Contenedor del reproductor OGV / Canvas */
     #player-container {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #000;
-      z-index: 10;
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: #000; z-index: 10;
     }
-
     #player-container canvas {
-      width: 100vw !important;
-      height: 100vh !important;
+      width: 100vw !important; height: 100vh !important;
       object-fit: contain;
     }
-    
-    #status-pill {
-      position: absolute; top: 16px; left: 20px; z-index: 50;
-      background: rgba(15, 15, 17, 0.85); padding: 8px 16px; border-radius: 8px;
-      font-size: 13px; border: 1px solid rgba(255,255,255,0.12);
-      backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease;
-      pointer-events: none;
-    }
 
-    #toggle-menu-btn {
-      position: absolute; bottom: 24px; right: 24px; z-index: 60;
-      background: rgba(232, 33, 39, 0.9); color: #fff; border: none;
-      padding: 14px 20px; border-radius: 30px; font-size: 15px; font-weight: 700;
-      cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,0.6);
-      backdrop-filter: blur(8px); display: flex; align-items: center; gap: 8px;
+    /* Barra flotante de navegación */
+    #nav-bar {
+      position: absolute; bottom: 24px; right: 24px; z-index: 150;
+      display: none; gap: 12px;
     }
+    .nav-action-btn {
+      background: rgba(24, 24, 28, 0.9); color: #fff; border: 1px solid #333;
+      padding: 12px 20px; border-radius: 30px; font-size: 14px; font-weight: 600;
+      cursor: pointer; backdrop-filter: blur(10px); display: flex; align-items: center; gap: 8px;
+    }
+    .nav-action-btn:active { background: #333; }
 
+    /* Menú lateral modal para búsqueda / canales */
     #side-drawer {
-      position: absolute; top: 0; right: 0; width: 420px; height: 100vh;
-      background: rgba(18, 18, 20, 0.95); backdrop-filter: blur(20px);
-      z-index: 70; border-left: 1px solid rgba(255,255,255,0.12);
-      display: flex; flex-direction: column; padding: 20px;
+      position: absolute; top: 0; right: 0; width: 440px; height: 100vh;
+      background: rgba(18, 18, 22, 0.98); backdrop-filter: blur(20px);
+      z-index: 200; border-left: 1px solid rgba(255,255,255,0.1);
+      display: flex; flex-direction: column; padding: 24px;
       transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
     #side-drawer.open { transform: translateX(0); }
-
-    .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .drawer-header h3 { font-size: 18px; font-weight: 700; }
-    .close-btn { background: #2c2c2e; border: none; color: #fff; width: 32px; height: 32px; border-radius: 16px; font-weight: 700; cursor: pointer; }
+    .close-btn { background: #28282e; border: none; color: #fff; width: 34px; height: 34px; border-radius: 17px; cursor: pointer; font-size: 16px; }
 
-    .search-box { display: flex; gap: 8px; margin-bottom: 8px; }
-    .search-box input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; font-size: 14px; }
-    .search-box button { background: #e82127; border: none; color: #fff; padding: 12px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+    .search-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .search-row input {
+      flex: 1; padding: 12px 14px; border-radius: 10px;
+      border: 1px solid #333; background: #0a0a0c; color: #fff; font-size: 14px;
+    }
+    .search-row button {
+      background: #e82127; border: none; color: #fff; padding: 12px 18px;
+      border-radius: 10px; font-weight: 700; cursor: pointer;
+    }
 
-    .drawer-results { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-    .item-card { display: flex; gap: 10px; background: #242426; border: 1px solid #333; padding: 12px; border-radius: 8px; align-items: center; cursor: pointer; }
-    .item-card:active { border-color: #e82127; }
-    .item-title { font-size: 13px; font-weight: 600; }
+    .channels-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .channel-item {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #1c1c20; border: 1px solid #28282e; padding: 14px; border-radius: 10px; cursor: pointer;
+    }
+    .channel-item:active { border-color: #e82127; }
 
-    .drawer-footer { margin-top: 12px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-    .ctrl-btn { background: #242426; border: 1px solid #333; color: #fff; padding: 12px 0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    #status-pill {
+      position: absolute; top: 16px; left: 20px; z-index: 300;
+      background: rgba(20, 20, 24, 0.9); padding: 8px 16px; border-radius: 8px;
+      font-size: 13px; border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+    }
   </style>
-  <!-- Motor WebAssembly OGV idéntico al de MotionStream -->
   <script src="https://cdn.jsdelivr.net/npm/ogv@1.8.9/dist/ogv.js"></script>
 </head>
 <body>
 
+  <!-- Overlay de inicio / confirmación -->
   <div id="overlay">
-    <div class="badge">SISTEMA TESLA MOTION • MOTOR OGV</div>
-    <h1>Modo Ruta Acelerado por Software</h1>
-    <p>Decodificación por WebAssembly / WebGL para rodar en Drive sin suspensión de pantalla.</p>
+    <div class="badge">SISTEMA TESLA MOTION</div>
+    <h1>Centro de Entretenimiento</h1>
+    <p>Renderizado por software optimizado para visualización en ruta segura.</p>
     
     <div class="room-box">
       <span>Código de Enlace</span>
       <strong id="display-room">TSLA-77</strong>
     </div>
 
-    <button class="btn-primary" onclick="startDisplay()">SOY PASAJERO O ESTACIONADO</button>
+    <button class="btn-auth" onclick="unlockHub()">SOY PASAJERO O ESTACIONADO</button>
   </div>
 
-  <div id="status-pill">Listo</div>
+  <!-- Hub de selección: YouTube vs TV -->
+  <div id="home-hub">
+    <div class="hub-title">¿Qué deseas ver hoy?</div>
+    <div class="hub-sub">Selecciona una fuente de transmisión</div>
 
+    <div class="hub-grid">
+      <div class="hub-card" onclick="openSection('youtube')">
+        <div class="hub-icon">▶️</div>
+        <div class="hub-card-title">YouTube</div>
+        <div class="hub-card-desc">Búsqueda directa y reproducción continua</div>
+      </div>
+
+      <div class="hub-card" onclick="openSection('iptv')">
+        <div class="hub-icon">📺</div>
+        <div class="hub-card-title">Televisión en Vivo</div>
+        <div class="hub-card-desc">Canales de TV, eventos y deportes</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenedor del reproductor OGV -->
   <div id="player-container"></div>
 
-  <button id="toggle-menu-btn" onclick="toggleDrawer()">
-    <span>🔍</span> Controles / Medios
-  </button>
+  <!-- Barra de control en reproducción -->
+  <div id="nav-bar">
+    <button class="nav-action-btn" onclick="showHub()">
+      <span>🏠</span> Menú Principal
+    </button>
+    <button class="nav-action-btn" onclick="toggleDrawer()">
+      <span id="drawer-btn-icon">🔍</span> <span id="drawer-btn-text">Buscar</span>
+    </button>
+  </div>
 
+  <!-- Panel lateral modal dinámico -->
   <div id="side-drawer">
     <div class="drawer-header">
-      <h3>Canales y Flujos</h3>
+      <h3 id="drawer-title">Contenido</h3>
       <button class="close-btn" onclick="toggleDrawer()">✕</button>
     </div>
 
-    <div class="search-box">
-      <input type="text" id="streamUrlInput" placeholder="URL directa de video..." autocomplete="off">
-      <button onclick="loadDirectUrl(document.getElementById('streamUrlInput').value)">Cargar</button>
+    <div class="search-row">
+      <input type="text" id="streamInput" placeholder="Buscar..." autocomplete="off">
+      <button onclick="handleDrawerAction()">Ir</button>
     </div>
 
-    <div class="drawer-results">
-      <div class="item-card" onclick="loadTestStream('https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.360p.vp9.webm', 'Clip WebM (OGV Decoded)')">
-        <div>
-          <div class="item-title">Video de Prueba Software WebM (VP9/Opus)</div>
-          <div style="font-size:11px; color:#888;">Render 100% Canvas WebGL</div>
-        </div>
-      </div>
-      <div class="item-card" onclick="loadTestStream('https://upload.wikimedia.org/wikipedia/commons/transcoded/f/f1/Sintel_movie_4K.webm/Sintel_movie_4K.webm.360p.vp9.webm', 'Sintel (WebM)')">
-        <div>
-          <div class="item-title">Sintel Movie (VP9 / WebAssembly)</div>
-          <div style="font-size:11px; color:#888;">Decodificador por software</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="drawer-footer">
-      <button class="ctrl-btn" onclick="if(ogvPlayer) ogvPlayer.play()">Play</button>
-      <button class="ctrl-btn" onclick="if(ogvPlayer) ogvPlayer.pause()">Pausa</button>
-    </div>
+    <div class="channels-list" id="drawerContent"></div>
   </div>
+
+  <div id="status-pill">Listo</div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const ROOM_ID = 'TSLA-77';
     let ogvPlayer = null;
     let userAuthorized = false;
-    const container = document.getElementById('player-container');
-    const drawer = document.getElementById('side-drawer');
+    let currentMode = 'none';
+
+    const overlay = document.getElementById('overlay');
+    const homeHub = document.getElementById('home-hub');
+    const playerContainer = document.getElementById('player-container');
+    const navBar = document.getElementById('nav-bar');
+    const sideDrawer = document.getElementById('side-drawer');
     const statusPill = document.getElementById('status-pill');
 
     const socket = io();
@@ -163,63 +204,98 @@
       setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
     }
 
-    function toggleDrawer() {
-      drawer.classList.toggle('open');
+    function unlockHub() {
+      overlay.style.display = 'none';
+      homeHub.style.display = 'flex';
+      userAuthorized = true;
+      socket.emit('join-room', ROOM_ID);
+      initOGV();
     }
 
     function initOGV() {
       if (ogvPlayer) {
         try { ogvPlayer.stop(); } catch(e){}
-        container.innerHTML = '';
+        playerContainer.innerHTML = '';
       }
+      ogvPlayer = new OGVPlayer({ webGL: true, worker: true });
+      playerContainer.appendChild(ogvPlayer);
 
-      // Configuración de OGV: forzar backend WebGL / Canvas de software
-      ogvPlayer = new OGVPlayer({
-        webGL: true,
-        worker: true
-      });
-
-      container.appendChild(ogvPlayer);
-
-      // Prevenir evento de pausa forzada de Tesla en marcha
       ogvPlayer.addEventListener('pause', () => {
-        if (userAuthorized && !ogvPlayer.ended) {
-          setTimeout(() => {
-            if (userAuthorized) ogvPlayer.play();
-          }, 150);
+        if (userAuthorized && !ogvPlayer.ended && currentMode !== 'none') {
+          setTimeout(() => { if (userAuthorized) ogvPlayer.play(); }, 150);
         }
       });
     }
 
-    function loadTestStream(url, title) {
-      showStatus('Cargando: ' + title);
+    function openSection(mode) {
+      currentMode = mode;
+      homeHub.style.display = 'none';
+      navBar.style.display = 'flex';
+
+      const drawerTitle = document.getElementById('drawer-title');
+      const drawerInput = document.getElementById('streamInput');
+      const drawerContent = document.getElementById('drawerContent');
+
+      if (mode === 'youtube') {
+        drawerTitle.textContent = 'Buscar en YouTube';
+        drawerInput.placeholder = 'Pega enlace o ID de YouTube...';
+        drawerContent.innerHTML = `
+          <div style="font-size:12px; color:#888; padding:10px;">
+            Introduce la URL de YouTube o el ID del video arriba para reproducirlo en el decodificador de ruta.
+          </div>
+        `;
+        toggleDrawer();
+      } else if (mode === 'iptv') {
+        drawerTitle.textContent = 'Canales de TV en Vivo';
+        drawerInput.placeholder = 'Pega URL .m3u8 o stream...';
+        drawerContent.innerHTML = `
+          <div class="channel-item" onclick="loadStreamDirect('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', 'Canal Demostración')">
+            <div>
+              <div style="font-weight:700; font-size:14px;">Canal de Señal Continuo</div>
+              <div style="font-size:11px; color:#888;">Emisión de prueba en vivo</div>
+            </div>
+            <span style="color:#e82127; font-size:12px; font-weight:700;">EN VIVO</span>
+          </div>
+        `;
+        toggleDrawer();
+      }
+    }
+
+    function showHub() {
+      if (ogvPlayer) {
+        try { ogvPlayer.stop(); } catch(e){}
+      }
+      currentMode = 'none';
+      sideDrawer.classList.remove('open');
+      navBar.style.display = 'none';
+      homeHub.style.display = 'flex';
+      showStatus('Menú principal');
+    }
+
+    function toggleDrawer() {
+      sideDrawer.classList.toggle('open');
+    }
+
+    function handleDrawerAction() {
+      const val = document.getElementById('streamInput').value.trim();
+      if (!val) return;
+      loadStreamDirect(val, 'Transmisión Personalizada');
+      toggleDrawer();
+    }
+
+    function loadStreamDirect(url, title) {
+      showStatus('Sintonizando: ' + title);
       if (!ogvPlayer) initOGV();
       ogvPlayer.src = url;
       ogvPlayer.load();
       ogvPlayer.play();
-      if (drawer.classList.contains('open')) toggleDrawer();
-    }
-
-    function loadDirectUrl(url) {
-      if (!url || !url.trim()) return;
-      loadTestStream(url.trim(), 'Flujo personalizado');
-    }
-
-    function startDisplay() {
-      document.getElementById('overlay').style.display = 'none';
-      userAuthorized = true;
-      socket.emit('join-room', ROOM_ID);
-
-      initOGV();
-      loadTestStream('https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.360p.vp9.webm', 'Test WebM');
-      showStatus('Motor OGV activo');
     }
 
     socket.on('execute-command', ({ action, payload }) => {
       if (!ogvPlayer) return;
-      if (action === 'playStream') loadTestStream(payload.url, 'Remoto');
-      else if (action === 'pause') { userAuthorized = false; ogvPlayer.pause(); }
-      else if (action === 'play') { userAuthorized = true; ogvPlayer.play(); }
+      if (action === 'playStream') loadStreamDirect(payload.url, 'Control Remoto');
+      else if (action === 'pause') ogvPlayer.pause();
+      else if (action === 'play') ogvPlayer.play();
     });
   </script>
 </body>
