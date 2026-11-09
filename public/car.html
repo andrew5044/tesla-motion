@@ -51,7 +51,7 @@
     .hub-card-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
     .hub-card-desc { font-size: 12px; color: #888; }
 
-    /* Contenedores de reproducción */
+    /* Contenedor del reproductor */
     #player-container {
       position: fixed; inset: 0; width: 100vw; height: 100vh;
       display: flex; align-items: center; justify-content: center;
@@ -94,7 +94,6 @@
       border-radius: 10px; font-weight: 700; cursor: pointer;
     }
 
-    /* Caja de Autocompletado */
     #suggest-box {
       position: absolute; top: calc(100% + 4px); left: 0; right: 0;
       background: #18181c; border: 1px solid #333; border-radius: 10px;
@@ -107,7 +106,6 @@
 
     .results-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
     
-    /* Tarjetas de videos y canales */
     .yt-card {
       display: flex; gap: 12px; background: #18181c; border: 1px solid #28282e;
       border-radius: 10px; padding: 8px; cursor: pointer;
@@ -275,7 +273,6 @@
       toggleDrawer();
     }
 
-    // Autocompletado mientras se escribe
     streamInput.addEventListener('input', () => {
       const q = streamInput.value.trim();
       clearTimeout(suggestDebounce);
@@ -345,11 +342,11 @@
     }
 
     function playYouTubeVideo(id, title) {
-      showStatus('Sintonizando: ' + title);
+      showStatus('Extrayendo flujo: ' + title);
       toggleDrawer();
-      // Embeber reproductor con Canvas persistente o decodificador
       initOGV();
-      ogvPlayer.src = `https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.360p.vp9.webm`;
+      // Enlace directo al extractor del servidor que corre por OGV/Canvas
+      ogvPlayer.src = `/api/yt-stream?id=${id}`;
       ogvPlayer.load();
       ogvPlayer.play();
     }

@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const https = require('https');
+const ytdl = require('@distube/ytdl-core');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,7 +14,10 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// API de sugerencias de YouTube (Autocompletado oficial JSONP/JSON)
+// 1. Ruta de salud para verificar que el servidor esté vivo
+app.get('/health', (req, res) => res.send('OK'));
+
+// 2. Autocompletado de YouTube
 app.get('/api/yt-suggest', (req, res) => {
   const q = req.query.q || '';
   if (!q.trim()) return res.json([]);
@@ -32,7 +36,7 @@ app.get('/api/yt-suggest', (req, res) => {
   }).on('error', () => res.json([]));
 });
 
-// API de búsqueda básica de videos de YouTube sin API Key
+// 3. Búsqueda de videos
 app.get('/api/yt-search', (req, res) => {
   const q = req.query.q || '';
   if (!q.trim()) return res.json([]);
@@ -68,17 +72,40 @@ app.get('/api/yt-search', (req, res) => {
   }).on('error', () => res.json([]));
 });
 
-// Socket.io para enlace remoto
-io.on('connection', (socket) => {
-  socket.on('join-room', (roomId) => {
-    socket.join(roomId);
-  });
+// 4. Extractor y Streaming Directo de YouTube hacia el auto
+app.get('/api/yt-stream', async (req, res) => {
+  const videoId = req.query.id;
+  if (!videoId) return res.status(400).send('ID requerido');
 
+  try {
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const info = await ytdl.getInfo(videoUrl);
+
+    // Buscar formato compatible directo (MP4/WebM con video y audio combinados)
+    const format = ytdl.chooseFormat(info.formats, { quality: '18' }) || 
+                   ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
+
+    if (!format || !format.url) {
+      return res.status(404).send('No se encontró formato compatible');
+    }
+
+    // Pipe de streaming al navegador
+    res.setHeader('Content-Type', 'video/mp4');
+    ytdl(videoUrl, { format: format }).pipe(res);
+  } catch (err) {
+    console.error('Error extrayendo YouTube:', err.message);
+    res.status(500).send('Error extrayendo video');
+  }
+});
+
+// 5. Enlace remoto Socket.io
+io.on('connection', (socket) => {
+  socket.on('join-room', (roomId) => socket.join(roomId));
   socket.on('send-command', ({ roomId, action, payload }) => {
     socket.to(roomId).emit('execute-command', { action, payload });
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`Servidor activo en el puerto ${PORT}`);
+  console.log(`Tesla Motion Server corriendo en puerto ${PORT}`);
 });
