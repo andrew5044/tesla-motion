@@ -22,6 +22,7 @@
       font-size: 16px; font-weight: 700; border-radius: 12px; cursor: pointer;
       box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4);
     }
+    .btn-auth:active { transform: scale(0.98); }
 
     #home-hub {
       position: fixed; inset: 0; z-index: 100;
@@ -42,11 +43,15 @@
     .hub-card-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
     .hub-card-desc { font-size: 12px; color: #888; }
 
-    #hidden-video { position: absolute; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0.001; pointer-events: none; }
-    #render-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; object-fit: contain; background: #000; z-index: 10; }
+    /* Contenedor oficial para OGVPlayer */
+    #ogv-display-target {
+      position: fixed; inset: 0; width: 100vw; height: 100vh;
+      background: #000; z-index: 10;
+    }
 
     #nav-bar {
-      position: absolute; bottom: 24px; right: 24px; z-index: 150; display: none; gap: 12px;
+      position: absolute; bottom: 24px; right: 24px; z-index: 150;
+      display: none; gap: 12px;
     }
     .nav-action-btn {
       background: rgba(24, 24, 28, 0.9); color: #fff; border: 1px solid #333;
@@ -118,14 +123,14 @@
       backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script src="/player-assets/ogv.js"></script>
 </head>
 <body>
 
   <div id="overlay">
     <div class="badge">SISTEMA TESLA MOTION</div>
     <h1>Paso 1: Pon el vehículo en Drive (D)</h1>
-    <p>Para activar el modo continuo sin pantalla negra, pasa primero la palanca a Drive y luego pulsa el botón.</p>
+    <p>Para activar el motor gráfico por software sin pantalla negra, pasa primero a Drive y luego pulsa el botón.</p>
     <button class="btn-auth" onclick="unlockHub()">YA ESTOY EN DRIVE • INICIAR</button>
   </div>
 
@@ -148,8 +153,7 @@
     </div>
   </div>
 
-  <video id="hidden-video" playsinline webkit-playsinline crossOrigin="anonymous" preload="auto"></video>
-  <canvas id="render-canvas"></canvas>
+  <div id="ogv-display-target"></div>
 
   <div id="nav-bar">
     <button class="nav-action-btn" onclick="showHub()">🏠 Menú Principal</button>
@@ -185,16 +189,14 @@
     let currentMode = 'none';
     let currentIptvTab = 'all';
     let suggestDebounce = null;
-    let hlsInstance = null;
+    let playerInstance = null;
 
     let serverChannels = [];
     let serverFavorites = [];
 
     const overlay = document.getElementById('overlay');
     const homeHub = document.getElementById('home-hub');
-    const video = document.getElementById('hidden-video');
-    const canvas = document.getElementById('render-canvas');
-    const ctx = canvas.getContext('2d', { alpha: false });
+    const displayTarget = document.getElementById('ogv-display-target');
     const navBar = document.getElementById('nav-bar');
     const sideDrawer = document.getElementById('side-drawer');
     const statusPill = document.getElementById('status-pill');
@@ -209,22 +211,29 @@
       setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
     }
 
-    function renderPipeline() {
-      if (!userAuthorized) return;
-      if (video.readyState >= 2 && !video.paused && !video.ended) {
-        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-          }
+    function initPlayerEngine() {
+      if (playerInstance) {
+        try { playerInstance.stop(); } catch (e) {}
+        displayTarget.innerHTML = '';
+      }
+
+      // Configuración extraída directamente de MotionStream
+      playerInstance = new window.OGVPlayer({
+        base: '/player-assets',
+        wasm: true,
+        webGL: true
+      });
+
+      playerInstance.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;';
+      displayTarget.appendChild(playerInstance);
+
+      playerInstance.addEventListener('pause', () => {
+        if (userAuthorized && !playerInstance.ended && currentMode !== 'none') {
+          setTimeout(() => {
+            if (userAuthorized && playerInstance) playerInstance.play();
+          }, 100);
         }
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      }
-      if ('requestVideoFrameCallback' in video) {
-        video.requestVideoFrameCallback(renderPipeline);
-      } else {
-        requestAnimationFrame(renderPipeline);
-      }
+      });
     }
 
     function unlockHub() {
@@ -232,12 +241,7 @@
       homeHub.style.display = 'flex';
       userAuthorized = true;
 
-      if ('requestVideoFrameCallback' in video) {
-        video.requestVideoFrameCallback(renderPipeline);
-      } else {
-        requestAnimationFrame(renderPipeline);
-      }
-
+      initPlayerEngine();
       syncIPTVData();
     }
 
@@ -336,35 +340,11 @@
       showStatus('Sintonizando: ' + title);
       toggleDrawer();
 
-      if (Hls.isSupported() && url.includes('.m3u8')) {
-        if (hlsInstance) hlsInstance.destroy();
-        hlsInstance = new Hls({ enableWorker: true, lowLatencyMode: true });
-        hlsInstance.loadSource(url);
-        hlsInstance.attachMedia(video);
-        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => forcePlay());
-      } else {
-        if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
-        video.src = url;
-        video.load();
-        forcePlay();
-      }
+      if (!playerInstance) initPlayerEngine();
+      playerInstance.src = url;
+      playerInstance.load();
+      playerInstance.play();
     }
-
-    function forcePlay() {
-      const p = video.play();
-      if (p !== undefined) {
-        p.catch(() => {
-          video.muted = true;
-          video.play().then(() => { video.muted = false; });
-        });
-      }
-    }
-
-    video.addEventListener('pause', () => {
-      if (userAuthorized && !video.ended && currentMode !== 'none') {
-        setTimeout(() => { if (userAuthorized) forcePlay(); }, 120);
-      }
-    });
 
     function renderM3UManager() {
       drawerContent.innerHTML = `
@@ -459,8 +439,9 @@
     }
 
     function showHub() {
-      video.pause();
-      video.src = '';
+      if (playerInstance) {
+        try { playerInstance.stop(); } catch (e) {}
+      }
       currentMode = 'none';
       sideDrawer.classList.remove('open');
       navBar.style.display = 'none';
