@@ -14,10 +14,19 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// 1. Ruta de salud para verificar que el servidor esté vivo
+// 1. Rutas de páginas para el auto (soporta /car, /car.html y la raíz /)
+app.get('/car', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'car.html'));
+});
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'car.html'));
+});
+
+// 2. Ruta de verificación
 app.get('/health', (req, res) => res.send('OK'));
 
-// 2. Autocompletado de YouTube
+// 3. Autocompletado de YouTube
 app.get('/api/yt-suggest', (req, res) => {
   const q = req.query.q || '';
   if (!q.trim()) return res.json([]);
@@ -36,7 +45,7 @@ app.get('/api/yt-suggest', (req, res) => {
   }).on('error', () => res.json([]));
 });
 
-// 3. Búsqueda de videos
+// 4. Búsqueda de videos
 app.get('/api/yt-search', (req, res) => {
   const q = req.query.q || '';
   if (!q.trim()) return res.json([]);
@@ -72,7 +81,7 @@ app.get('/api/yt-search', (req, res) => {
   }).on('error', () => res.json([]));
 });
 
-// 4. Extractor y Streaming Directo de YouTube hacia el auto
+// 5. Extractor y streaming directo de YouTube
 app.get('/api/yt-stream', async (req, res) => {
   const videoId = req.query.id;
   if (!videoId) return res.status(400).send('ID requerido');
@@ -81,7 +90,6 @@ app.get('/api/yt-stream', async (req, res) => {
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
     const info = await ytdl.getInfo(videoUrl);
 
-    // Buscar formato compatible directo (MP4/WebM con video y audio combinados)
     const format = ytdl.chooseFormat(info.formats, { quality: '18' }) || 
                    ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
 
@@ -89,7 +97,6 @@ app.get('/api/yt-stream', async (req, res) => {
       return res.status(404).send('No se encontró formato compatible');
     }
 
-    // Pipe de streaming al navegador
     res.setHeader('Content-Type', 'video/mp4');
     ytdl(videoUrl, { format: format }).pipe(res);
   } catch (err) {
@@ -98,7 +105,7 @@ app.get('/api/yt-stream', async (req, res) => {
   }
 });
 
-// 5. Enlace remoto Socket.io
+// 6. Socket.io
 io.on('connection', (socket) => {
   socket.on('join-room', (roomId) => socket.join(roomId));
   socket.on('send-command', ({ roomId, action, payload }) => {
@@ -107,5 +114,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Tesla Motion Server corriendo en puerto ${PORT}`);
+  console.log(`Tesla Motion Server activo en puerto ${PORT}`);
 });
