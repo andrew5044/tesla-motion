@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Tesla Motion All-in-One</title>
+  <title>Tesla Motion - Decoupled Stream</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff; }
@@ -21,23 +21,32 @@
     .room-box span { font-size: 11px; color: #888; display: block; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
     .room-box strong { font-size: 32px; letter-spacing: 4px; color: #e82127; }
     
-    .btn-container { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 340px; }
     .btn-primary {
-      background: #e82127; color: #fff; border: none; padding: 16px;
+      background: #e82127; color: #fff; border: none; padding: 16px 32px;
       font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer;
       box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4); text-decoration: none; display: block;
     }
 
-    /* Contenedor forzado con transformación de GPU activa */
-    #yt-wrapper {
-      position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 10;
-      transform: translate3d(0, 0, 0);
-      backface-visibility: hidden;
-      perspective: 1000px;
+    /* Video desacoplado fuera de vista */
+    #hidden-video {
+      position: absolute;
+      top: -9999px;
+      left: -9999px;
+      width: 1px;
+      height: 1px;
+      opacity: 0.01;
+      pointer-events: none;
     }
 
-    #player {
-      width: 100%; height: 100%;
+    /* Canvas acelerado visible */
+    #render-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+      background: #000;
+      z-index: 10;
     }
     
     #status-pill {
@@ -74,85 +83,81 @@
     .search-box input { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; font-size: 14px; }
     .search-box button { background: #e82127; border: none; color: #fff; padding: 12px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
 
-    #suggest-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
-    .suggest-chip { background: #242426; border: 1px solid #333; color: #ccc; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; text-align: left; }
-    .suggest-chip:active { background: #e82127; color: #fff; }
-
     .drawer-results { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
     .item-card { display: flex; gap: 10px; background: #242426; border: 1px solid #333; padding: 8px; border-radius: 8px; align-items: center; cursor: pointer; }
     .item-card:active { border-color: #e82127; }
-    .item-card img { width: 80px; height: 50px; border-radius: 4px; object-fit: cover; }
     .item-title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .drawer-footer { margin-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .ctrl-btn { background: #242426; border: 1px solid #333; color: #fff; padding: 12px 0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
     .ctrl-btn:active { background: #333; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
 
   <div id="overlay">
     <div class="badge">SISTEMA INTEGRADO TESLA MOTION</div>
-    <h1>Pantalla Continua en Ruta</h1>
-    <p>Toca para activar el audio y el motor de dibujo continuo sin congelamiento en Drive.</p>
+    <h1>Modo Desacoplado de Ruta</h1>
+    <p>Renderizado por Canvas acelerado para evitar la suspensión gráfica de Chromium al rodar.</p>
     
     <div class="room-box">
       <span>Código de Enlace</span>
       <strong id="display-room">TSLA-77</strong>
     </div>
 
-    <div class="btn-container">
-      <button class="btn-primary" onclick="startDisplay()">SOY PASAJERO O ESTACIONADO</button>
-    </div>
+    <button class="btn-primary" onclick="startDisplay()">SOY PASAJERO O ESTACIONADO</button>
   </div>
 
   <div id="status-pill">Iniciando...</div>
 
-  <div id="yt-wrapper">
-    <div id="player"></div>
-  </div>
+  <video id="hidden-video" playsinline webkit-playsinline crossOrigin="anonymous" preload="auto"></video>
+  <canvas id="render-canvas"></canvas>
 
   <button id="toggle-menu-btn" onclick="toggleDrawer()">
-    <span>🔍</span> Controles y Búsqueda
+    <span>🔍</span> Canales / Búsqueda
   </button>
 
   <div id="side-drawer">
     <div class="drawer-header">
-      <h3>Menú Multimedia</h3>
+      <h3>Canales y Medios</h3>
       <button class="close-btn" onclick="toggleDrawer()">✕</button>
     </div>
 
     <div class="search-box">
-      <input type="text" id="drawerSearchInput" placeholder="Buscar vídeo o tema..." autocomplete="off" oninput="handleDrawerSuggest(this.value)" onkeydown="if(event.key==='Enter') executeDrawerSearch(this.value)">
-      <button onclick="executeDrawerSearch(document.getElementById('drawerSearchInput').value)">Buscar</button>
+      <input type="text" id="streamUrlInput" placeholder="Pega URL .m3u8 o busca..." autocomplete="off">
+      <button onclick="loadDirectUrl(document.getElementById('streamUrlInput').value)">Cargar</button>
     </div>
 
-    <div id="suggest-list"></div>
-
     <div class="drawer-results" id="drawerResults">
-      <div style="font-size: 12px; color: #888; text-align: center; margin-top: 20px;">
-        Selecciona un video para reproducir.
+      <div class="item-card" onclick="playPreset('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', 'Canal Prueba HLS')">
+        <div style="padding:10px;">
+          <div class="item-title">Transmisión de Prueba HLS (Big Buck Bunny)</div>
+          <div style="font-size:11px; color:#888;">Flujo HLS directo continuo</div>
+        </div>
       </div>
     </div>
 
     <div class="drawer-footer">
-      <button class="ctrl-btn" onclick="emitCommand('seek', { seconds: -10 })">-10s</button>
-      <button class="ctrl-btn" onclick="emitCommand('play')">Play</button>
-      <button class="ctrl-btn" onclick="emitCommand('seek', { seconds: 10 })">+10s</button>
-      <button class="ctrl-btn" style="grid-column: span 3; background: #2c2c2e;" onclick="emitCommand('pause')">Pausar</button>
+      <button class="ctrl-btn" onclick="video.currentTime -= 10">-10s</button>
+      <button class="ctrl-btn" onclick="forcePlay()">Play</button>
+      <button class="ctrl-btn" onclick="video.currentTime += 10">+10s</button>
+      <button class="ctrl-btn" style="grid-column: span 3; background: #2c2c2e;" onclick="video.pause()">Pausar</button>
     </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     const ROOM_ID = 'TSLA-77';
-    let ytPlayer;
-    let suggestDebounce = null;
-    let userPaused = false;
-    let keepAliveLoop = null;
-    const statusPill = document.getElementById('status-pill');
+    const video = document.getElementById('hidden-video');
+    const canvas = document.getElementById('render-canvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
     const drawer = document.getElementById('side-drawer');
+    const statusPill = document.getElementById('status-pill');
+    let hls = null;
+    let renderLoopActive = false;
+    let userAuthorized = false;
+
     const socket = io();
 
     function showStatus(msg) {
@@ -165,161 +170,98 @@
       drawer.classList.toggle('open');
     }
 
-    function onYouTubeIframeAPIReady() {
-      ytPlayer = new YT.Player('player', {
-        height: '100%',
-        width: '100%',
-        videoId: '5qap5aO4i9A',
-        playerVars: {
-          'autoplay': 1,
-          'controls': 1,
-          'playsinline': 1,
-          'rel': 0,
-          'disablekb': 1,
-          'modestbranding': 1,
-          'origin': window.location.origin
-        },
-        events: {
-          'onStateChange': onPlayerStateChange
-        }
-      });
-    }
+    function renderPipeline() {
+      if (!renderLoopActive) return;
 
-    // EL SECRETO: Forzar el repintado de Chromium para que no congele el cuadro
-    function forceRepaint() {
-      const el = document.getElementById('yt-wrapper');
-      if (el) {
-        el.style.transform = el.style.transform === 'translate3d(0px, 0px, 0px)' 
-          ? 'translate3d(0px, 0.5px, 0px)' 
-          : 'translate3d(0px, 0px, 0px)';
+      if (video.readyState >= 2 && !video.paused && !video.ended) {
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+          }
+        }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       }
-    }
 
-    function onPlayerStateChange(event) {
-      // Si el auto intenta pausar al poner Drive
-      if (event.data === YT.PlayerState.PAUSED && !userPaused) {
-        if (ytPlayer && ytPlayer.playVideo) {
-          ytPlayer.playVideo();
-          forceRepaint();
-        }
+      if ('requestVideoFrameCallback' in video) {
+        video.requestVideoFrameCallback(renderPipeline);
+      } else {
+        requestAnimationFrame(renderPipeline);
       }
     }
 
     function startDisplay() {
       document.getElementById('overlay').style.display = 'none';
+      userAuthorized = true;
       socket.emit('join-room', ROOM_ID);
-      userPaused = false;
 
-      if (ytPlayer && ytPlayer.playVideo) {
-        ytPlayer.playVideo();
+      renderLoopActive = true;
+      if ('requestVideoFrameCallback' in video) {
+        video.requestVideoFrameCallback(renderPipeline);
+      } else {
+        requestAnimationFrame(renderPipeline);
       }
 
-      // Loop continuo cada 1 segundo para mantener la capa de dibujo activa en marcha
-      clearInterval(keepAliveLoop);
-      keepAliveLoop = setInterval(() => {
-        if (!userPaused) {
-          forceRepaint();
-          if (ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() === 2) {
-            ytPlayer.playVideo();
-          }
-        }
-      }, 1000);
-
-      showStatus('Modo Ruta Activo');
+      playPreset('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', 'Canal de Prueba Activo');
+      showStatus('Modo Desacoplado Listo');
     }
 
-    function playVideoById(videoId) {
-      userPaused = false;
-      if (ytPlayer && ytPlayer.loadVideoById) {
-        ytPlayer.loadVideoById(videoId);
-      }
-      showStatus('Cargando video...');
+    function playPreset(url, title) {
+      showStatus('Sintonizando: ' + title);
+      loadStream(url);
     }
 
-    function handleDrawerSuggest(val) {
-      clearTimeout(suggestDebounce);
-      const query = val.trim();
-      const list = document.getElementById('suggest-list');
-      if (query.length < 2) { list.innerHTML = ''; return; }
-
-      suggestDebounce = setTimeout(async () => {
-        try {
-          const res = await fetch(`/api/suggest?q=${encodeURIComponent(query)}`);
-          const data = await res.json();
-          const items = data.suggestions || [];
-          if (items.length === 0) { list.innerHTML = ''; return; }
-
-          list.innerHTML = items.slice(0, 4).map(s => `
-            <div class="suggest-chip" onclick="selectDrawerSuggest('${s.replace(/'/g, "\\'")}')">🔍 ${s}</div>
-          `).join('');
-        } catch (e) {
-          list.innerHTML = '';
-        }
-      }, 200);
+    function loadDirectUrl(url) {
+      if (!url || !url.trim()) return;
+      loadStream(url.trim());
+      toggleDrawer();
     }
 
-    function selectDrawerSuggest(term) {
-      document.getElementById('drawerSearchInput').value = term;
-      document.getElementById('suggest-list').innerHTML = '';
-      executeDrawerSearch(term);
-    }
-
-    async function executeDrawerSearch(q) {
-      const query = q.trim();
-      if (!query) return;
-      document.getElementById('suggest-list').innerHTML = '';
-      const container = document.getElementById('drawerResults');
-      container.innerHTML = '<div style="color:#888; text-align:center; padding:15px; font-size:13px;">Buscando...</div>';
-
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        if (!data.results || data.results.length === 0) {
-          container.innerHTML = '<div style="color:#888; text-align:center; padding:15px; font-size:13px;">Sin resultados</div>';
-          return;
-        }
-
-        container.innerHTML = '';
-        data.results.forEach(v => {
-          const card = document.createElement('div');
-          card.className = 'item-card';
-          card.onclick = () => {
-            playVideoById(v.videoId);
-            emitCommand('playVideo', { videoId: v.videoId });
-            toggleDrawer();
-          };
-          card.innerHTML = `
-            <img src="${v.thumbnail}" alt="thumb">
-            <div style="overflow:hidden;">
-              <div class="item-title">${v.title}</div>
-              <div style="font-size:11px; color:#888; margin-top:2px;">${v.author}</div>
-            </div>
-          `;
-          container.appendChild(card);
+    function loadStream(url) {
+      if (Hls.isSupported() && url.includes('.m3u8')) {
+        if (hls) hls.destroy();
+        hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          forcePlay();
         });
-      } catch (e) {
-        container.innerHTML = '<div style="color:#e82127; text-align:center; padding:15px; font-size:13px;">Error en la búsqueda</div>';
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            showStatus('Error de transmisión HLS');
+          }
+        });
+      } else {
+        video.src = url;
+        video.load();
+        forcePlay();
       }
     }
 
-    function emitCommand(action, payload = {}) {
-      if (action === 'pause') userPaused = true;
-      if (action === 'play') userPaused = false;
-      socket.emit('send-command', { roomId: ROOM_ID, action, payload });
+    function forcePlay() {
+      const p = video.play();
+      if (p !== undefined) {
+        p.catch(() => {
+          video.muted = true;
+          video.play().then(() => {
+            video.muted = false;
+          });
+        });
+      }
     }
+
+    video.addEventListener('pause', () => {
+      if (userAuthorized && !video.ended) {
+        setTimeout(() => {
+          if (userAuthorized) forcePlay();
+        }, 150);
+      }
+    });
 
     socket.on('execute-command', ({ action, payload }) => {
-      if (action === 'playVideo') playVideoById(payload.videoId);
-      else if (action === 'pause') {
-        userPaused = true;
-        if (ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
-      } else if (action === 'play') {
-        userPaused = false;
-        if (ytPlayer && ytPlayer.playVideo) ytPlayer.playVideo();
-      } else if (action === 'seek' && ytPlayer) {
-        const cur = ytPlayer.getCurrentTime();
-        ytPlayer.seekTo(cur + payload.seconds, true);
-      }
+      if (action === 'playStream') loadStream(payload.url);
+      else if (action === 'pause') { userAuthorized = false; video.pause(); }
+      else if (action === 'play') { userAuthorized = true; forcePlay(); }
     });
   </script>
 </body>
