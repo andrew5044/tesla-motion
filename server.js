@@ -1,141 +1,170 @@
 const express = require('express');
 const http = require('http');
 const https = require('https');
-const httpReq = require('http');
 const path = require('path');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
 const ytdl = require('@distube/ytdl-core');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
-
+const io = new Server(server, { cors: { origin: false } });
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
+app.use(express.json({ limit: '32kb' }));
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
-let globalFavorites = [];
-
-// Rutas de aplicación
-app.get('/car', (req, res) => res.sendFile(path.join(__dirname, 'public', 'car.html')));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'car.html')));
-app.get('/health', (req, res) => res.send('OK'));
-
-// 1. Endpoint de video para OGV (con soporte para peticiones HTTP Range)
-app.get('/api/playback/video', async (req, res) => {
-  const videoId = req.query.id;
-  const rawUrl = req.query.url;
-
-  if (videoId) {
-    try {
-      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      const info = await ytdl.getInfo(videoUrl);
-      
-      // Priorizar WebM/VP9 para decodificación WASM ultra rápida
-      const format = ytdl.chooseFormat(info.formats, { filter: f => f.container === 'webm' && f.hasVideo }) ||
-                     ytdl.chooseFormat(info.formats, { quality: '18' }) ||
-                     ytdl.chooseFormat(info.formats, { filter: 'videoandaudio' });
-
-      if (!format || !format.url) return res.status(404).send('Formato no encontrado');
-
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Content-Type', 'video/webm');
-      ytdl(videoUrl, { format }).pipe(res);
-    } catch (err) {
-      console.error('Error video YouTube:', err.message);
-      res.status(500).send('Error');
-    }
-  } else if (rawUrl) {
-    // Proxy de video para IPTV / enlaces directos
-    const client = rawUrl.startsWith('https') ? https : httpReq;
-    client.get(rawUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (streamRes) => {
-      res.writeHead(streamRes.statusCode, {
-        'Content-Type': streamRes.headers['content-type'] || 'video/mp4',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'no-cache'
-      });
-      streamRes.pipe(res);
-    }).on('error', () => res.status(500).send('Error en flujo'));
-  } else {
-    res.status(400).send('Falta id o url');
-  }
-});
-
-// 2. Endpoint de audio separado (para sincronización Web Audio)
-app.get('/api/playback/audio', async (req, res) => {
-  const videoId = req.query.id;
-  if (!videoId) return res.status(400).send('ID requerido');
-
-  try {
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    const info = await ytdl.getInfo(videoUrl);
-    const format = ytdl.chooseFormat(info.formats, { filter: 'audioonly' });
-
-    if (!format || !format.url) return res.status(404).send('Formato de audio no encontrado');
-
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'audio/webm');
-    ytdl(videoUrl, { format }).pipe(res);
-  } catch (err) {
-    res.status(500).send('Error audio');
-  }
-});
-
-// 3. Búsqueda y sugerencias de YouTube
-app.get('/api/yt-suggest', (req, res) => {
-  const q = req.query.q || '';
-  if (!q.trim()) return res.json([]);
-  https.get(`https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${encodeURIComponent(q)}`, (resp) => {
-    let data = '';
-    resp.on('data', chunk => data += chunk);
-    resp.on('end', () => {
-      try { res.json(JSON.parse(data)[1] || []); } catch(e) { res.json([]); }
-    });
-  }).on('error', () => res.json([]));
-});
-
-app.get('/api/yt-search', (req, res) => {
-  const q = req.query.q || '';
-  if (!q.trim()) return res.json([]);
-  https.get(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (resp) => {
-    let data = '';
-    resp.on('data', chunk => data += chunk);
-    resp.on('end', () => {
-      try {
-        const match = data.match(/var ytInitialData = ({.*?});<\/script>/);
-        if (!match) return res.json([]);
-        const initialData = JSON.parse(match[1]);
-        const contents = initialData.contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents[0].itemSectionRenderer.contents;
-        const results = [];
-        for (const item of contents) {
-          if (item.videoRenderer) {
-            const v = item.videoRenderer;
-            results.push({
-              id: v.videoId,
-              title: v.title.runs[0].text,
-              thumbnail: v.thumbnail.thumbnails[0]?.url,
-              channel: v.ownerText?.runs[0]?.text || '',
-              duration: v.lengthText?.simpleText || ''
-            });
-            if (results.length >= 15) break;
-          }
-        }
-        res.json(results);
-      } catch (err) { res.json([]); }
-    });
-  }).on('error', () => res.json([]));
-});
-
-// Canales preconfigurados
-const CANALES_DEFAULT = [
-  { id: 'caracol', name: 'Caracol Televisión (En Vivo)', url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
-  { id: 'demo1', name: 'Canal de Demostración (WebM / Software)', url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.360p.vp9.webm' },
-  { id: 'demo2', name: 'Canal Animación (Sintel)', url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/f/f1/Sintel_movie_4K.webm/Sintel_movie_4K.webm.360p.vp9.webm' }
+const rooms = new Map();
+const favorites = new Map();
+const queues = new Map();
+const channels = [
+  { id: 'demo-webm', name: 'Big Buck Bunny · WebM', url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.360p.vp9.webm' },
+  { id: 'sintel', name: 'Sintel · WebM', url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/f/f1/Sintel_movie_4K.webm/Sintel_movie_4K.webm.360p.vp9.webm' }
 ];
+const ALLOWED_STREAM_HOSTS = new Set(['upload.wikimedia.org', 'test-streams.mux.dev']);
+const MAX_REDIRECTS = 3;
 
-app.get('/api/iptv/data', (req, res) => {
-  res.json({ channels: CANALES_DEFAULT, favorites: globalFavorites });
+function validVideoId(id) { return typeof id === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(id); }
+function getRoom(code) {
+  if (typeof code !== 'string' || !/^[A-Z0-9]{6}$/.test(code)) return null;
+  return rooms.get(code) || null;
+}
+function sendJson(res, status, body) { res.status(status).json(body); }
+
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'car.html')));
+app.get('/car', (req, res) => res.sendFile(path.join(__dirname, 'public', 'car.html')));
+app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
+app.get('/health', (req, res) => res.json({ ok: true, service: 'tesla-motion' }));
+
+app.post('/api/session', (req, res) => {
+  const code = crypto.randomBytes(3).toString('hex').toUpperCase();
+  rooms.set(code, { createdAt: Date.now(), player: null });
+  res.json({ code, expiresIn: 3600 });
 });
 
-server.listen(PORT, () => console.log(`Servidor activo en el puerto ${PORT}`));
+app.get('/api/search', async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 160);
+  if (!q) return sendJson(res, 400, { error: 'Escribe qué quieres buscar.' });
+  const url = new URL('https://www.youtube.com/results');
+  url.searchParams.set('search_query', q);
+  const request = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36' }, timeout: 10000 }, response => {
+    let body = '';
+    response.setEncoding('utf8');
+    response.on('data', chunk => { body += chunk; if (body.length > 4_000_000) request.destroy(new Error('Respuesta demasiado grande')); });
+    response.on('end', () => {
+      try {
+        const match = body.match(/var ytInitialData\s*=\s*({.*?});<\/script>/s);
+        if (!match) return res.json({ results: [] });
+        const data = JSON.parse(match[1]);
+        const sections = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || [];
+        const items = sections.flatMap(section => section.itemSectionRenderer?.contents || []);
+        const results = items.filter(item => item.videoRenderer).slice(0, 15).map(({ videoRenderer: v }) => ({
+          videoId: v.videoId,
+          title: (v.title?.runs || []).map(x => x.text).join(''),
+          thumbnail: v.thumbnail?.thumbnails?.slice(-1)[0]?.url || '',
+          author: v.ownerText?.runs?.[0]?.text || '',
+          duration: v.lengthText?.simpleText || ''
+        }));
+        res.json({ results });
+      } catch (_) { res.json({ results: [] }); }
+    });
+  });
+  request.on('timeout', () => request.destroy());
+  request.on('error', () => { if (!res.headersSent) res.status(502).json({ error: 'No fue posible consultar YouTube.' }); });
+});
+
+app.get('/api/suggest', (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 120);
+  if (!q) return res.json({ suggestions: [] });
+  const url = new URL('https://suggestqueries.google.com/complete/search');
+  url.searchParams.set('client', 'firefox'); url.searchParams.set('ds', 'yt'); url.searchParams.set('q', q);
+  https.get(url, { timeout: 7000 }, response => {
+    let body = ''; response.setEncoding('utf8');
+    response.on('data', c => body += c);
+    response.on('end', () => { try { res.json({ suggestions: JSON.parse(body)[1] || [] }); } catch (_) { res.json({ suggestions: [] }); } });
+  }).on('error', () => { if (!res.headersSent) res.json({ suggestions: [] }); });
+});
+
+app.get('/api/iptv/data', (req, res) => res.json({ channels, favorites: favorites.get('default') || [] }));
+
+app.get('/api/favorites', (req, res) => res.json({ favorites: favorites.get('default') || [] }));
+app.post('/api/favorites', (req, res) => {
+  const item = req.body;
+  if (!item || !validVideoId(item.videoId) || typeof item.title !== 'string' || item.title.length > 240) return sendJson(res, 400, { error: 'Favorito no válido.' });
+  const list = favorites.get('default') || [];
+  if (!list.some(v => v.videoId === item.videoId)) list.unshift({ videoId: item.videoId, title: item.title, thumbnail: typeof item.thumbnail === 'string' ? item.thumbnail.slice(0, 1000) : '' });
+  favorites.set('default', list.slice(0, 100));
+  res.json({ favorites: favorites.get('default') });
+});
+app.delete('/api/favorites/:id', (req, res) => {
+  const list = (favorites.get('default') || []).filter(v => v.videoId !== req.params.id);
+  favorites.set('default', list); res.json({ favorites: list });
+});
+
+app.get('/api/playback/video', async (req, res) => {
+  const id = String(req.query.id || '');
+  if (!validVideoId(id)) return sendJson(res, 400, { error: 'ID de video no válido.' });
+  try {
+    const videoUrl = 'https://www.youtube.com/watch?v=' + id;
+    const info = await ytdl.getInfo(videoUrl);
+    const format = ytdl.chooseFormat(info.formats, { quality: '18' }) || ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
+    if (!format?.url) return sendJson(res, 404, { error: 'No se encontró un formato compatible.' });
+    res.setHeader('Content-Type', format.mimeType?.split(';')[0] || 'video/mp4');
+    res.setHeader('Cache-Control', 'no-store');
+    const stream = ytdl(videoUrl, { format, highWaterMark: 1 << 20 });
+    req.on('close', () => stream.destroy());
+    stream.on('error', () => { if (!res.headersSent) res.status(502).end('No fue posible obtener el video.'); });
+    stream.pipe(res);
+  } catch (error) {
+    console.error('YouTube playback:', error.message);
+    if (!res.headersSent) sendJson(res, 502, { error: 'YouTube no permitió obtener este video.' });
+  }
+});
+
+function requestAllowedStream(target, res, range, redirects = 0) {
+  let parsed;
+  try { parsed = new URL(target); } catch (_) { return res.status(400).send('URL no válida.'); }
+  if (parsed.protocol !== 'https:' || !ALLOWED_STREAM_HOSTS.has(parsed.hostname) || parsed.username || parsed.password) return res.status(403).send('Fuente no autorizada.');
+  const request = https.get(parsed, { headers: { 'User-Agent': 'TeslaMotion/1.0', ...(range ? { Range: range } : {}) }, timeout: 15000 }, upstream => {
+    if ([301, 302, 303, 307, 308].includes(upstream.statusCode) && upstream.headers.location) {
+      upstream.resume();
+      if (redirects >= MAX_REDIRECTS) return res.status(502).send('Demasiadas redirecciones.');
+      return requestAllowedStream(new URL(upstream.headers.location, parsed).toString(), res, range, redirects + 1);
+    }
+    const headers = {};
+    ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified'].forEach(key => { if (upstream.headers[key]) headers[key] = upstream.headers[key]; });
+    headers['Access-Control-Allow-Origin'] = '*';
+    headers['Cache-Control'] = 'no-store';
+    res.writeHead(upstream.statusCode || 502, headers);
+    upstream.pipe(res);
+  });
+  request.on('timeout', () => request.destroy());
+  request.on('error', () => { if (!res.headersSent) res.status(502).send('Error al conectar con la fuente.'); });
+  reqAbortCleanup(request, res);
+}
+function reqAbortCleanup(request, res) {
+  res.on('close', () => { if (!res.writableEnded) request.destroy(); });
+}
+app.get('/api/proxy-stream', (req, res) => {
+  if (typeof req.query.url !== 'string' || req.query.url.length > 2048) return res.status(400).send('Falta URL o es demasiado larga.');
+  requestAllowedStream(req.query.url, res, typeof req.headers.range === 'string' ? req.headers.range : null);
+});
+
+io.on('connection', socket => {
+  socket.on('join-room', code => {
+    const room = getRoom(code);
+    if (!room || Date.now() - room.createdAt > 3600000) return socket.emit('room-error', 'Código vencido o inválido.');
+    socket.join(code); socket.data.roomCode = code; socket.emit('room-joined', { code });
+  });
+  socket.on('send-command', message => {
+    const room = getRoom(message?.roomId);
+    if (!room || socket.data.roomCode !== message.roomId) return;
+    const allowed = new Set(['playVideo', 'play', 'pause', 'seek', 'queueAdd']);
+    if (!allowed.has(message.action)) return;
+    if (message.action === 'playVideo' && !validVideoId(message.payload?.videoId)) return;
+    io.to(message.roomId).emit('player-command', { action: message.action, payload: message.payload || {} });
+  });
+  socket.on('disconnect', () => {});
+});
+
+server.listen(PORT, () => console.log('[Tesla Motion] Servidor activo en puerto ' + PORT));
