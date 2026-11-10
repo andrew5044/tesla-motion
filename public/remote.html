@@ -3,285 +3,82 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Control Copiloto Tesla</title>
+  <title>Tesla Motion — Control Pasajero</title>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: #121214; color: #fff; padding: 18px; display: flex; flex-direction: column; min-height: 100vh; }
-    
-    .header { text-align: center; margin-bottom: 16px; }
-    .header h2 { font-size: 20px; font-weight: 600; }
-    .header p { color: #888; font-size: 13px; margin-top: 2px; }
-    
-    .tabs { display: flex; background: #1c1c1e; border-radius: 12px; padding: 4px; margin-bottom: 16px; }
-    .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; color: #888; font-weight: 600; font-size: 14px; border-radius: 8px; cursor: pointer; }
-    .tab-btn.active { background: #2c2c2e; color: #fff; }
-
-    .card { background: #1c1c1e; padding: 16px; border-radius: 14px; margin-bottom: 16px; border: 1px solid #2a2a2c; }
-    label { font-size: 12px; color: #888; text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 8px; }
-    .search-row { display: flex; gap: 8px; margin-bottom: 8px; }
-    input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; font-size: 15px; }
-    .btn-action { background: #e82127; color: #fff; border: none; padding: 12px 18px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; }
-
-    /* Barra de sugerencias horizontales y lista */
-    #suggest-bar { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
-    .suggest-chip {
-      background: #242426; border: 1px solid #38383a; color: #ddd;
-      padding: 10px 14px; border-radius: 8px; font-size: 14px; cursor: pointer;
-      text-align: left; display: flex; align-items: center; gap: 8px;
-    }
-    .suggest-chip:active { background: #e82127; color: #fff; border-color: #e82127; }
-
-    /* Resultados YouTube */
-    .results-container { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-top: 6px; }
-    .video-card { display: flex; gap: 12px; background: #242426; border: 1px solid #333; padding: 8px; border-radius: 10px; align-items: center; cursor: pointer; }
-    .video-card:active { border-color: #e82127; background: #2a2a2c; }
-    .video-thumb { width: 90px; height: 55px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
-    .video-info { display: flex; flex-direction: column; overflow: hidden; flex: 1; }
-    .video-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .video-meta { font-size: 11px; color: #888; margin-top: 4px; }
-
-    /* Canales Rápidos En Vivo */
-    .live-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 6px; }
-    .live-card { background: #242426; border: 1px solid #333; padding: 12px; border-radius: 10px; text-align: center; cursor: pointer; }
-    .live-card:active { border-color: #e82127; background: #2c2c2e; }
-    .live-card strong { display: block; font-size: 14px; margin-bottom: 4px; color: #fff; }
-    .live-card span { font-size: 11px; color: #e82127; font-weight: 700; text-transform: uppercase; }
-
-    /* Controles */
-    .controls-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .ctrl-btn { background: #242426; border: 1px solid #333; color: #fff; padding: 14px 0; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
-    .ctrl-btn:active { background: #333; }
-    .btn-full { grid-column: span 3; background: #2c2c2e; }
-
-    .hidden { display: none; }
+    * { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background:#0b0c10; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; padding:20px; }
+    .card { background:#151821; border:1px solid #252b3b; border-radius:16px; padding:24px; width:100%; max-width:360px; text-align:center; }
+    h2 { font-size:20px; margin-bottom:12px; }
+    input { width:100%; padding:14px; background:#07080a; border:1px solid #334155; border-radius:10px; color:#fff; font-size:20px; text-align:center; margin-bottom:14px; letter-spacing:6px; font-weight:800; }
+    button { width:100%; padding:14px; background:#10b981; border:none; border-radius:10px; color:#000; font-weight:800; cursor:pointer; }
+    button:active { transform: scale(0.98); }
+    .btn-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+    .btn-sec { background:#1e293b; color:#fff; }
+    #remote-ui { display:none; }
   </style>
+  <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
 
-  <div class="header">
-    <h2>Control Copiloto Tesla</h2>
-    <p>Sala: <strong style="color: #e82127;">TSLA-77</strong></p>
+  <!-- Emparejamiento -->
+  <div class="card" id="pair-ui">
+    <h2>Emparejar Control</h2>
+    <p style="color:#64748b; font-size:12px; margin-bottom:16px;">Ingresa el PIN de 4 dígitos que aparece en la pantalla del vehículo</p>
+    <input type="text" id="inputPin" maxlength="4" placeholder="0000" inputmode="numeric">
+    <button onclick="pairDevice()">Vincular</button>
   </div>
 
-  <div class="tabs">
-    <button class="tab-btn active" id="tab-yt-btn" onclick="switchTab('yt')">Buscador YouTube</button>
-    <button class="tab-btn" id="tab-live-btn" onclick="switchTab('live')">TV En Vivo 24/7</button>
-  </div>
-
-  <!-- Pestaña Buscador -->
-  <div id="section-yt">
-    <div class="card">
-      <label>Buscar vídeos o música</label>
-      <div class="search-row">
-        <input type="text" id="searchInput" placeholder="Escribe canción, artista o tema..." autocomplete="off" oninput="handleInput(this.value)" onkeydown="if(event.key==='Enter') executeSearch(this.value)">
-        <button class="btn-action" onclick="executeSearch(document.getElementById('searchInput').value)">Buscar</button>
-      </div>
-
-      <!-- Tira de Sugerencias Directas -->
-      <div id="suggest-bar"></div>
-
-      <div id="loadingText" style="display:none; font-size:13px; color:#888; text-align:center; padding:10px;">Buscando vídeos...</div>
-      <div class="results-container" id="resultsContainer"></div>
-    </div>
-
-    <div class="card">
-      <label>Enviar enlace directo de YouTube</label>
-      <div class="search-row">
-        <input type="text" id="ytUrl" placeholder="https://youtu.be/...">
-        <button class="btn-action" onclick="sendDirectUrl()">Enviar</button>
-      </div>
+  <!-- Controles Multimedia -->
+  <div class="card" id="remote-ui">
+    <h2>Control Pasajero</h2>
+    <div style="font-size:11px; color:#10b981; margin-bottom:16px; font-weight:700;">● Terminal Vinculada</div>
+    
+    <div class="btn-grid">
+      <button class="btn-sec" onclick="sendCommand('play')">▶ Reanudar</button>
+      <button class="btn-sec" onclick="sendCommand('pause')">⏸ Pausar</button>
+      <button class="btn-sec" onclick="sendCommand('seek', { time: 0 })">⏮ Reiniciar</button>
+      <button class="btn-sec" onclick="changeDemo()">📺 Canal Demo</button>
     </div>
   </div>
 
-  <!-- Pestaña TV en Vivo -->
-  <div id="section-live" class="hidden">
-    <div class="card">
-      <label>Canales de Transmisión Directa</label>
-      <div class="live-grid">
-        <div class="live-card" onclick="playLiveChannel('noticias caracol en vivo')">
-          <strong>Noticias Caracol</strong>
-          <span>🔴 En Directo</span>
-        </div>
-        <div class="live-card" onclick="playLiveChannel('noticias rcn en vivo')">
-          <strong>Noticias RCN</strong>
-          <span>🔴 En Directo</span>
-        </div>
-        <div class="live-card" onclick="playLiveChannel('redmas noticias en vivo')">
-          <strong>Red+ Noticias</strong>
-          <span>🔴 En Directo</span>
-        </div>
-        <div class="live-card" onclick="playLiveChannel('dw espanol en vivo')">
-          <strong>DW Español</strong>
-          <span>🔴 En Directo</span>
-        </div>
-        <div class="live-card" onclick="playLiveChannel('musica lofi hip hop live')">
-          <strong>Lofi Chill Beats</strong>
-          <span>🎵 Música 24/7</span>
-        </div>
-        <div class="live-card" onclick="playLiveChannel('musica electronica live 2026')">
-          <strong>Club Dance Live</strong>
-          <span>🎵 Música 24/7</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Controles universales -->
-  <div class="card">
-    <label>Controles de Reproducción</label>
-    <div class="controls-grid">
-      <button class="ctrl-btn" onclick="sendCommand('seek', { seconds: -10 })">-10s</button>
-      <button class="ctrl-btn" onclick="sendCommand('play')">Play</button>
-      <button class="ctrl-btn" onclick="sendCommand('seek', { seconds: 10 })">+10s</button>
-      <button class="ctrl-btn btn-full" onclick="sendCommand('pause')">Pausar Reproducción</button>
-    </div>
-  </div>
-
-  <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
-    const ROOM_ID = 'TSLA-77';
-    let debounceTimer = null;
+    let currentPin = '';
 
-    socket.emit('join-room', ROOM_ID);
+    function pairDevice() {
+      const pin = document.getElementById('inputPin').value.trim();
+      if (pin.length !== 4) return alert('El PIN debe tener 4 dígitos');
+      currentPin = pin;
+      socket.emit('pair-remote', { pin });
+    }
 
-    function handleInput(text) {
-      clearTimeout(debounceTimer);
-      const query = text.trim();
-      const suggestBar = document.getElementById('suggest-bar');
-
-      if (query.length < 2) {
-        suggestBar.innerHTML = '';
+    socket.on('pair-success', ({ isPassenger }) => {
+      if (!isPassenger) {
+        alert('El vehículo se encuentra en Modo Conductor. Los controles multimedia están deshabilitados.');
         return;
       }
+      document.getElementById('pair-ui').style.display = 'none';
+      document.getElementById('remote-ui').style.display = 'block';
+    });
 
-      debounceTimer = setTimeout(async () => {
-        try {
-          const res = await fetch(`/api/suggest?q=${encodeURIComponent(query)}`);
-          const data = await res.json();
-          const list = data.suggestions || [];
+    socket.on('pair-error', ({ message }) => {
+      alert('Error de emparejamiento: ' + message);
+    });
 
-          if (list.length === 0) {
-            suggestBar.innerHTML = '';
-            return;
-          }
-
-          suggestBar.innerHTML = list.slice(0, 5).map(item => `
-            <div class="suggest-chip" onclick="applySuggestion('${item.replace(/'/g, "\\'")}')">
-              <span>🔍</span> <strong>${item}</strong>
-            </div>
-          `).join('');
-        } catch (e) {
-          suggestBar.innerHTML = '';
-        }
-      }, 200);
-    }
-
-    function applySuggestion(term) {
-      document.getElementById('searchInput').value = term;
-      document.getElementById('suggest-bar').innerHTML = '';
-      executeSearch(term);
-    }
-
-    async function executeSearch(query) {
-      const q = query.trim();
-      if (!q) return;
-
-      document.getElementById('suggest-bar').innerHTML = '';
-      const loader = document.getElementById('loadingText');
-      const container = document.getElementById('resultsContainer');
-      loader.style.display = 'block';
-      container.innerHTML = '';
-
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        loader.style.display = 'none';
-
-        if (!data.results || data.results.length === 0) {
-          container.innerHTML = '<div style="color:#888; font-size:13px; text-align:center;">Sin resultados</div>';
-          return;
-        }
-
-        data.results.forEach(v => {
-          const card = document.createElement('div');
-          card.className = 'video-card';
-          card.onclick = () => {
-            socket.emit('send-command', {
-              roomId: ROOM_ID,
-              action: 'playVideo',
-              payload: { videoId: v.videoId }
-            });
-          };
-          card.innerHTML = `
-            <img class="video-thumb" src="${v.thumbnail}" alt="thumb">
-            <div class="video-info">
-              <span class="video-title">${v.title}</span>
-              <span class="video-meta">${v.author} • ${v.timestamp}</span>
-            </div>
-          `;
-          container.appendChild(card);
-        });
-      } catch (e) {
-        loader.style.display = 'none';
-        container.innerHTML = '<div style="color:#e82127; font-size:13px; text-align:center;">Error al buscar</div>';
-      }
-    }
-
-    async function playLiveChannel(queryTerm) {
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(queryTerm)}`);
-        const data = await res.json();
-        if (data.results && data.results.length > 0) {
-          socket.emit('send-command', {
-            roomId: ROOM_ID,
-            action: 'playVideo',
-            payload: { videoId: data.results[0].videoId }
-          });
-        }
-      } catch (e) {
-        console.error('Error cargando canal:', e);
-      }
-    }
-
-    function extractVideoId(url) {
-      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-      return match ? match[1] : url.trim();
-    }
-
-    function sendDirectUrl() {
-      const input = document.getElementById('ytUrl').value;
-      if (!input) return;
-      const videoId = extractVideoId(input);
-      socket.emit('send-command', {
-        roomId: ROOM_ID,
-        action: 'playVideo',
-        payload: { videoId }
-      });
-      document.getElementById('ytUrl').value = '';
-    }
-
-    function switchTab(mode) {
-      const secYt = document.getElementById('section-yt');
-      const secLive = document.getElementById('section-live');
-      const tabYt = document.getElementById('tab-yt-btn');
-      const tabLive = document.getElementById('tab-live-btn');
-
-      if (mode === 'yt') {
-        secYt.classList.remove('hidden');
-        secLive.classList.add('hidden');
-        tabYt.classList.add('active');
-        tabLive.classList.remove('active');
-      } else {
-        secYt.classList.add('hidden');
-        secLive.classList.remove('hidden');
-        tabYt.classList.remove('active');
-        tabLive.classList.add('active');
-      }
-    }
+    socket.on('player-disconnected', () => {
+      alert('La pantalla del vehículo se ha desconectado.');
+      location.reload();
+    });
 
     function sendCommand(action, payload = {}) {
-      socket.emit('send-command', { roomId: ROOM_ID, action, payload });
+      socket.emit('player-command', { pin: currentPin, action, payload });
+    }
+
+    function changeDemo() {
+      sendCommand('changeChannel', {
+        url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.360p.vp9.webm',
+        name: 'Big Buck Bunny (WebM)'
+      });
     }
   </script>
 </body>

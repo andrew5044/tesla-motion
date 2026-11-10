@@ -3,68 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Tesla Motion</title>
+  <title>Tesla Motion — Terminal Vehicular</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff; }
 
-    #overlay {
-      position: fixed; inset: 0; z-index: 999;
-      background: #0b0c0e; display: flex; flex-direction: column;
+    #safety-modal {
+      position: fixed; inset: 0; z-index: 1000;
+      background: #0b0c10; display: flex; flex-direction: column;
       align-items: center; justify-content: center; text-align: center; padding: 24px;
     }
-    .badge { background: #1c1d22; border: 1px solid #2e3038; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #aaa; margin-bottom: 14px; }
-    h1 { font-size: 26px; margin-bottom: 8px; font-weight: 700; letter-spacing: -0.5px; }
-    p { color: #888; font-size: 14px; margin-bottom: 24px; max-width: 440px; line-height: 1.4; }
+    .badge-sec { background: #1f2026; border: 1px solid #334155; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #f59e0b; margin-bottom: 16px; font-weight: 700; }
+    h1 { font-size: 26px; margin-bottom: 10px; font-weight: 800; }
+    p.desc { color: #94a3b8; font-size: 14px; max-width: 480px; line-height: 1.5; margin-bottom: 24px; }
+    
+    .btn-group { display: flex; gap: 16px; }
+    .btn-mode { border: none; padding: 14px 28px; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .btn-passenger { background: #10b981; color: #000; }
+    .btn-driver { background: #334155; color: #cbd5e1; }
+    .btn-mode:active { transform: scale(0.97); }
 
-    .btn-auth {
-      background: #e82127; color: #fff; border: none; padding: 16px 36px;
-      font-size: 16px; font-weight: 700; border-radius: 12px; cursor: pointer;
-      box-shadow: 0 4px 18px rgba(232, 33, 39, 0.4);
-    }
-    .btn-auth:active { transform: scale(0.98); }
-
-    #player-mount {
-      position: fixed; inset: 0; width: 100vw; height: 100vh;
-      background: #000; z-index: 10;
-    }
-    #player-mount canvas {
-      width: 100vw !important; height: 100vh !important; object-fit: contain;
+    #driver-block {
+      display: none; position: fixed; inset: 0; z-index: 900;
+      background: #090a0f; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;
     }
 
-    #home-hub {
-      position: fixed; inset: 0; z-index: 100;
-      background: #0a0a0c; display: none; flex-direction: column;
-      align-items: center; justify-content: center; padding: 30px;
-    }
-    .hub-title { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
-    .hub-sub { font-size: 14px; color: #777; margin-bottom: 36px; }
+    #player-container { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 10; background: #000; }
+    #player-container canvas { width: 100% !important; height: 100% !important; object-fit: contain; }
 
-    .hub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%; max-width: 680px; }
-    .hub-card {
-      background: #151518; border: 1px solid #28282e; border-radius: 16px;
-      padding: 36px 20px; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; cursor: pointer; text-align: center;
+    #diag-panel {
+      position: absolute; top: 12px; left: 12px; z-index: 200;
+      background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1); padding: 8px 14px; border-radius: 8px; font-size: 11px;
     }
-    .hub-card:active { border-color: #e82127; }
-    .hub-icon { font-size: 48px; margin-bottom: 16px; }
-    .hub-card-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-    .hub-card-desc { font-size: 12px; color: #888; }
+    .diag-ok { color: #34d399; font-weight: 700; }
+    .diag-err { color: #f87171; font-weight: 700; }
 
-    #nav-bar {
-      position: absolute; bottom: 24px; right: 24px; z-index: 150;
-      display: none; gap: 12px;
+    #pin-badge {
+      position: absolute; top: 12px; right: 12px; z-index: 200;
+      background: #e82127; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 800; letter-spacing: 1px;
     }
-    .nav-action-btn {
-      background: rgba(24, 24, 28, 0.9); color: #fff; border: 1px solid #333;
-      padding: 12px 20px; border-radius: 30px; font-size: 14px; font-weight: 600;
-      cursor: pointer; backdrop-filter: blur(10px);
+
+    #nav-controls {
+      position: absolute; bottom: 20px; right: 20px; z-index: 200; display: flex; gap: 10px;
+    }
+    .ctrl-btn {
+      background: rgba(30, 41, 59, 0.9); color: #fff; border: 1px solid #475569; padding: 10px 18px; border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer;
     }
 
     #side-drawer {
-      position: absolute; top: 0; right: 0; width: 440px; height: 100vh;
+      position: absolute; top: 0; right: 0; width: 420px; height: 100vh;
       background: rgba(18, 18, 22, 0.98); backdrop-filter: blur(20px);
-      z-index: 200; border-left: 1px solid rgba(255,255,255,0.1);
+      z-index: 300; border-left: 1px solid rgba(255,255,255,0.1);
       display: flex; flex-direction: column; padding: 24px;
       transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
@@ -72,289 +62,279 @@
     .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .close-btn { background: #28282e; border: none; color: #fff; width: 34px; height: 34px; border-radius: 17px; cursor: pointer; }
 
-    .search-wrapper { position: relative; margin-bottom: 12px; }
-    .search-row { display: flex; gap: 8px; }
-    .search-row input {
-      flex: 1; padding: 12px 14px; border-radius: 10px;
-      border: 1px solid #333; background: #0a0a0c; color: #fff; font-size: 14px;
-    }
-    .search-row button {
-      background: #e82127; border: none; color: #fff; padding: 12px 18px;
-      border-radius: 10px; font-weight: 700; cursor: pointer;
-    }
-
-    #suggest-box {
-      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-      background: #18181c; border: 1px solid #333; border-radius: 10px;
-      max-height: 200px; overflow-y: auto; z-index: 250; display: none;
-    }
-    .suggest-item { padding: 10px 14px; border-bottom: 1px solid #242428; cursor: pointer; font-size: 13px; }
-    .suggest-item:hover { background: #25252b; color: #e82127; }
-
-    .results-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-
+    .channel-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
     .channel-card {
-      background: #1c1c20; border: 1px solid #28282e; padding: 14px; border-radius: 10px; cursor: pointer;
+      background: #1c1c20; border: 1px solid #28282e; padding: 12px 14px; border-radius: 10px; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
     }
     .channel-card:active { border-color: #e82127; }
-    .channel-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
-    .channel-sub { font-size: 11px; color: #888; }
 
-    .yt-card {
-      display: flex; gap: 12px; background: #18181c; border: 1px solid #28282e;
-      border-radius: 10px; padding: 8px; cursor: pointer;
-    }
-    .yt-card img { width: 120px; height: 68px; object-fit: cover; border-radius: 6px; }
-    .yt-info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-    .yt-title { font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .yt-meta { font-size: 11px; color: #888; }
-
-    #status-pill {
-      position: absolute; top: 16px; left: 20px; z-index: 300;
-      background: rgba(20, 20, 24, 0.9); padding: 8px 16px; border-radius: 8px;
-      font-size: 13px; border: 1px solid rgba(255,255,255,0.12);
-      backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+    #toast-msg {
+      position: absolute; bottom: 20px; left: 20px; z-index: 400;
+      background: rgba(0,0,0,0.9); border-left: 3px solid #e82127; padding: 10px 16px; border-radius: 4px; font-size: 12px; display: none;
     }
   </style>
+  <script src="/socket.io/socket.io.js"></script>
   <script src="/player-assets/ogv.js"></script>
 </head>
 <body>
 
-  <div id="overlay">
-    <div class="badge">SISTEMA TESLA MOTION</div>
-    <h1>Paso 1: Pon el vehículo en Drive (D)</h1>
-    <p>Para activar el motor gráfico por software sin pantalla negra, pasa primero a Drive y luego pulsa el botón.</p>
-    <button class="btn-auth" onclick="unlockHub()">YA ESTOY EN DRIVE • INICIAR</button>
-  </div>
-
-  <div id="home-hub">
-    <div class="hub-title">¿Qué deseas ver hoy?</div>
-    <div class="hub-sub">Selecciona una fuente de transmisión</div>
-
-    <div class="hub-grid">
-      <div class="hub-card" onclick="openSection('youtube')">
-        <div class="hub-icon">▶️</div>
-        <div class="hub-card-title">YouTube</div>
-        <div class="hub-card-desc">Motor continuo en marcha</div>
-      </div>
-
-      <div class="hub-card" onclick="openSection('iptv')">
-        <div class="hub-icon">📺</div>
-        <div class="hub-card-title">Televisión en Vivo</div>
-        <div class="hub-card-desc">Canales sincronizados</div>
-      </div>
+  <!-- Modal de Seguridad Obligatorio -->
+  <div id="safety-modal">
+    <div class="badge-sec">CONTROL DE SEGURIDAD OPERATIVA</div>
+    <h1>Selección de Rol de Cabina</h1>
+    <p class="desc">
+      Conforme a las normativas viales, la visualización de medios gráficos continuos en pantalla está habilitada exclusivamente para pasajeros.
+    </p>
+    <div class="btn-group">
+      <button class="btn-mode btn-passenger" onclick="selectRole('passenger')">SOY PASAJERO</button>
+      <button class="btn-mode btn-driver" onclick="selectRole('driver')">SOY CONDUCTOR</button>
     </div>
   </div>
 
-  <div id="player-mount"></div>
-
-  <div id="nav-bar">
-    <button class="nav-action-btn" onclick="showHub()">🏠 Menú Principal</button>
-    <button class="nav-action-btn" onclick="toggleDrawer()">🔍 Buscar / Canales</button>
+  <!-- Bloqueo para Modo Conductor -->
+  <div id="driver-block">
+    <div style="font-size: 40px; margin-bottom: 12px;">🛡️</div>
+    <h2>Modo Conducción Activo</h2>
+    <p style="color:#64748b; font-size:13px; max-width:380px; margin-top:8px;">
+      La transmisión visual se encuentra deshabilitada para prevenir distracciones al volante.
+    </p>
+    <button class="ctrl-btn" style="margin-top:20px;" onclick="location.reload()">Cambiar Rol</button>
   </div>
 
+  <!-- Contenedor del Reproductor -->
+  <div id="player-container"></div>
+
+  <!-- Panel Diagnóstico -->
+  <div id="diag-panel">
+    <div>WASM: <span id="diag-wasm">Verificando...</span></div>
+    <div>OGV Core: <span id="diag-ogv">Verificando...</span></div>
+  </div>
+
+  <div id="pin-badge">PIN: ----</div>
+
+  <!-- Controles de Navegación -->
+  <div id="nav-controls">
+    <button class="ctrl-btn" onclick="toggleDrawer()">📺 Canales</button>
+    <button class="ctrl-btn" onclick="toggleMute()">Audio On/Off</button>
+  </div>
+
+  <!-- Panel Lateral -->
   <div id="side-drawer">
     <div class="drawer-header">
-      <h3 id="drawer-title">Contenido</h3>
+      <h3>Canales de Transmisión</h3>
       <button class="close-btn" onclick="toggleDrawer()">✕</button>
     </div>
-
-    <div class="search-wrapper" id="searchWrapper">
-      <div class="search-row">
-        <input type="text" id="streamInput" placeholder="Buscar video..." autocomplete="off">
-        <button onclick="triggerSearch()">Buscar</button>
-      </div>
-      <div id="suggest-box"></div>
-    </div>
-
-    <div class="results-scroll" id="drawerContent"></div>
+    <div class="channel-list" id="channelListContainer"></div>
   </div>
 
-  <div id="status-pill">Listo</div>
+  <div id="toast-msg"></div>
 
   <script>
-    let playerInstance = null;
-    let userAuthorized = false;
-    let currentMode = 'none';
-    let suggestDebounce = null;
+    let socket = null;
+    let ogvInstance = null;
+    let audioContextSingleton = null;
+    let userRole = null;
+    let sessionPin = null;
 
-    const overlay = document.getElementById('overlay');
-    const homeHub = document.getElementById('home-hub');
-    const playerMount = document.getElementById('player-mount');
-    const navBar = document.getElementById('nav-bar');
-    const sideDrawer = document.getElementById('side-drawer');
-    const statusPill = document.getElementById('status-pill');
-    const streamInput = document.getElementById('streamInput');
-    const suggestBox = document.getElementById('suggest-box');
-    const drawerContent = document.getElementById('drawerContent');
-    const searchWrapper = document.getElementById('searchWrapper');
-
-    function showStatus(msg) {
-      statusPill.textContent = msg;
-      statusPill.style.opacity = '1';
-      setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
+    function notify(text, isError = false) {
+      const el = document.getElementById('toast-msg');
+      el.textContent = text;
+      el.style.borderLeftColor = isError ? '#f87171' : '#10b981';
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 3500);
     }
 
-    // Inicialización del motor nativo idéntico a MotionStream
-    function initPlayerEngine() {
-      if (playerInstance) {
-        try { playerInstance.stop(); } catch (e) {}
-        playerMount.innerHTML = '';
-      }
-
-      // Desbloqueo del contexto de audio
-      try {
+    // Singleton Reutilizable de AudioContext
+    function getAudioContext() {
+      if (!audioContextSingleton) {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (AudioCtx) {
-          const ctx = new AudioCtx();
-          ctx.resume();
+          audioContextSingleton = new AudioCtx();
         }
-      } catch(e){}
-
-      playerInstance = new window.OGVPlayer({
-        base: '/player-assets',
-        wasm: true,
-        webGL: true
-      });
-
-      playerInstance.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;';
-      playerMount.appendChild(playerInstance);
-
-      // Reanudación inmediata si el vehículo envía evento de pausa
-      playerInstance.addEventListener('pause', () => {
-        if (userAuthorized && !playerInstance.ended && currentMode !== 'none') {
-          setTimeout(() => {
-            if (userAuthorized && playerInstance) playerInstance.play();
-          }, 100);
-        }
-      });
-    }
-
-    function unlockHub() {
-      overlay.style.display = 'none';
-      homeHub.style.display = 'flex';
-      userAuthorized = true;
-      initPlayerEngine();
-    }
-
-    function openSection(mode) {
-      currentMode = mode;
-      homeHub.style.display = 'none';
-      navBar.style.display = 'flex';
-      suggestBox.style.display = 'none';
-
-      const drawerTitle = document.getElementById('drawer-title');
-      if (mode === 'youtube') {
-        searchWrapper.style.display = 'block';
-        drawerTitle.textContent = 'Buscar en YouTube';
-        streamInput.placeholder = 'Escribe lo que quieras ver...';
-        streamInput.value = '';
-        drawerContent.innerHTML = '<div style="color:#777; font-size:13px; text-align:center; padding:30px;">Escribe una palabra o artista para buscar.</div>';
-      } else {
-        searchWrapper.style.display = 'none';
-        drawerTitle.textContent = 'Canales de Televisión';
-        loadTvChannels();
       }
-      toggleDrawer();
+      return audioContextSingleton;
     }
 
-    streamInput.addEventListener('input', () => {
-      const q = streamInput.value.trim();
-      clearTimeout(suggestDebounce);
-      if (q.length < 2) { suggestBox.style.display = 'none'; return; }
-      suggestDebounce = setTimeout(() => {
-        fetch(`/api/yt-suggest?q=${encodeURIComponent(q)}`)
-          .then(r => r.json())
-          .then(items => {
-            if (!items.length) { suggestBox.style.display = 'none'; return; }
-            suggestBox.innerHTML = items.map(text => `
-              <div class="suggest-item" onclick="selectSuggestion('${text.replace(/'/g, "\\'")}')">🔍 ${text}</div>
-            `).join('');
-            suggestBox.style.display = 'block';
-          }).catch(() => { suggestBox.style.display = 'none'; });
-      }, 180);
-    });
-
-    function selectSuggestion(text) {
-      streamInput.value = text;
-      suggestBox.style.display = 'none';
-      triggerSearch();
+    async function resumeAudio() {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        try {
+          await ctx.resume();
+        } catch (e) {
+          console.warn('Fallo al reactivar AudioContext:', e);
+        }
+      }
     }
 
-    function triggerSearch() {
-      suggestBox.style.display = 'none';
-      const q = streamInput.value.trim();
-      if (!q) return;
+    // Diagnóstico en Tiempo Real
+    async function runDiagnostics() {
+      const wasmSupported = typeof WebAssembly !== 'undefined';
+      const elWasm = document.getElementById('diag-wasm');
+      elWasm.className = wasmSupported ? 'diag-ok' : 'diag-err';
+      elWasm.textContent = wasmSupported ? 'DISPONIBLE' : 'NO SOPORTADO';
 
-      showStatus('Buscando en YouTube...');
-      drawerContent.innerHTML = '<div style="color:#aaa; text-align:center; padding:30px;">Cargando...</div>';
-      fetch(`/api/yt-search?q=${encodeURIComponent(q)}`)
-        .then(r => r.json())
-        .then(videos => {
-          if (!videos.length) {
-            drawerContent.innerHTML = '<div style="color:#aaa; text-align:center; padding:30px;">Sin resultados.</div>';
-            return;
+      const ogvSupported = typeof window.OGVPlayer !== 'undefined';
+      const elOgv = document.getElementById('diag-ogv');
+      elOgv.className = ogvSupported ? 'diag-ok' : 'diag-err';
+      elOgv.textContent = ogvSupported ? 'CARGADO' : 'ERROR/AUSENTE';
+
+      try {
+        const res = await fetch('/api/diagnostics/player');
+        const data = await res.json();
+        if (!data.allWasmPresent) {
+          notify(`Componentes WASM ausentes: ${data.missingComponents.join(', ')}`, true);
+        }
+      } catch (err) {
+        console.warn('No se pudo consultar diagnóstico backend');
+      }
+    }
+
+    // Selección de Rol
+    function selectRole(role) {
+      userRole = role;
+      document.getElementById('safety-modal').style.display = 'none';
+      resumeAudio();
+
+      if (role === 'driver') {
+        document.getElementById('driver-block').style.display = 'flex';
+        initSocketConnection(false);
+      } else {
+        initPlayerEngine();
+        initSocketConnection(true);
+        loadChannelList();
+      }
+    }
+
+    function initPlayerEngine() {
+      if (typeof window.OGVPlayer === 'undefined') {
+        return notify('Error crítico: OGVPlayer no se encuentra cargado.', true);
+      }
+
+      const container = document.getElementById('player-container');
+      container.innerHTML = '';
+
+      try {
+        ogvInstance = new window.OGVPlayer({
+          base: '/player-assets',
+          webGL: true,
+          worker: true
+        });
+
+        ogvInstance.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;';
+        container.appendChild(ogvInstance);
+
+        ogvInstance.addEventListener('loadedmetadata', () => notify('Metadatos cargados'));
+        ogvInstance.addEventListener('ended', () => notify('Transmisión finalizada'));
+        ogvInstance.addEventListener('error', () => {
+          notify('Fallo de decodificación en OGVPlayer (Verifique códec compatible)', true);
+        });
+
+        // Prevención de pausa forzada por movimiento del vehículo
+        ogvInstance.addEventListener('pause', () => {
+          if (userRole === 'passenger' && !ogvInstance.ended) {
+            setTimeout(() => {
+              if (userRole === 'passenger' && ogvInstance) {
+                const p = ogvInstance.play();
+                if (p !== undefined) p.catch(() => {});
+              }
+            }, 120);
           }
-          drawerContent.innerHTML = videos.map(v => `
-            <div class="yt-card" onclick="playYouTube('${v.id}', '${v.title.replace(/'/g, "\\'")}')">
-              <img src="${v.thumbnail || ''}" alt="miniatura">
-              <div class="yt-info">
-                <div class="yt-title">${v.title}</div>
-                <div class="yt-meta">${v.channel} • ${v.duration}</div>
-              </div>
-            </div>
-          `).join('');
-        }).catch(() => { drawerContent.innerHTML = '<div style="color:#e82127; text-align:center; padding:30px;">Error al buscar.</div>'; });
+        });
+
+      } catch (err) {
+        notify('Error inicializando OGVPlayer: ' + err.message, true);
+      }
     }
 
-    function playYouTube(videoId, title) {
-      showStatus('Reproduciendo: ' + title);
-      toggleDrawer();
+    // Socket.IO y Emparejamiento
+    function initSocketConnection(isPassenger) {
+      socket = io();
 
-      if (!playerInstance) initPlayerEngine();
-      // Alimentar directamente desde el endpoint dedicado
-      playerInstance.src = `/api/playback/video?id=${videoId}`;
-      playerInstance.load();
-      playerInstance.play();
+      socket.on('connect', () => {
+        socket.emit('register-player', { isPassenger });
+      });
+
+      socket.on('player-registered', ({ pin }) => {
+        sessionPin = pin;
+        document.getElementById('pin-badge').textContent = `PIN: ${pin}`;
+      });
+
+      socket.on('execute-command', ({ action, payload }) => {
+        if (userRole !== 'passenger' || !ogvInstance) return;
+
+        switch (action) {
+          case 'play':
+            ogvInstance.play().catch(() => {});
+            break;
+          case 'pause':
+            ogvInstance.pause();
+            break;
+          case 'seek':
+            if (payload && Number.isFinite(payload.time)) ogvInstance.currentTime = payload.time;
+            break;
+          case 'changeChannel':
+            if (payload && payload.url) loadStream(payload.url, payload.name || 'Canal');
+            break;
+        }
+      });
     }
 
-    function loadTvChannels() {
+    function loadChannelList() {
       fetch('/api/iptv/data')
         .then(r => r.json())
         .then(data => {
           const channels = data.channels || [];
-          drawerContent.innerHTML = channels.map(c => `
-            <div class="channel-card" onclick="playTv('${encodeURIComponent(c.url)}', '${c.name.replace(/'/g, "")}')">
-              <div class="channel-name">${c.name}</div>
-              <div class="channel-sub">Tocar para sintonizar en marcha</div>
+          const cont = document.getElementById('channelListContainer');
+          cont.innerHTML = channels.map(c => `
+            <div class="channel-card" onclick="loadStream('${c.url}', '${c.name.replace(/'/g, "")}')">
+              <div>
+                <div style="font-weight:700; font-size:13px;">${c.name}</div>
+                <div style="font-size:10px; color:#64748b;">Tocar para sintonizar</div>
+              </div>
+              <span style="font-size:11px; color:#10b981; font-weight:700;">VER</span>
             </div>
           `).join('');
-        }).catch(() => { drawerContent.innerHTML = '<div style="color:#888; text-align:center; padding:30px;">Error cargando canales</div>'; });
+
+          if (channels.length > 0) {
+            loadStream(channels[0].url, channels[0].name);
+          }
+        }).catch(() => notify('Error cargando canales', true));
     }
 
-    function playTv(encodedUrl, name) {
-      showStatus('Sintonizando: ' + name);
-      toggleDrawer();
+    function loadStream(url, name) {
+      if (userRole !== 'passenger' || !ogvInstance) return;
+      notify('Sintonizando: ' + name);
+      toggleDrawer(false);
 
-      if (!playerInstance) initPlayerEngine();
-      playerInstance.src = `/api/playback/video?url=${encodedUrl}`;
-      playerInstance.load();
-      playerInstance.play();
-    }
-
-    function showHub() {
-      if (playerInstance) {
-        try { playerInstance.stop(); } catch (e) {}
+      const proxyUrl = `/api/proxy-stream?url=${encodeURIComponent(url)}`;
+      ogvInstance.src = proxyUrl;
+      ogvInstance.load();
+      const p = ogvInstance.play();
+      if (p !== undefined) {
+        p.catch(err => {
+          console.warn('Reproducción diferida:', err);
+        });
       }
-      currentMode = 'none';
-      sideDrawer.classList.remove('open');
-      navBar.style.display = 'none';
-      homeHub.style.display = 'flex';
     }
 
-    function toggleDrawer() {
-      sideDrawer.classList.toggle('open');
+    function toggleMute() {
+      if (ogvInstance) {
+        ogvInstance.muted = !ogvInstance.muted;
+        notify(ogvInstance.muted ? 'Audio Silenciado' : 'Audio Activo');
+      }
     }
+
+    function toggleDrawer(forceState) {
+      const drawer = document.getElementById('side-drawer');
+      if (typeof forceState === 'boolean') {
+        drawer.classList.toggle('open', forceState);
+      } else {
+        drawer.classList.toggle('open');
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', runDiagnostics);
   </script>
 </body>
 </html>
