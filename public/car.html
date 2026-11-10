@@ -17,268 +17,183 @@
     h1 { font-size: 26px; margin-bottom: 10px; font-weight: 800; }
     p.desc { color: #94a3b8; font-size: 14px; max-width: 480px; line-height: 1.5; margin-bottom: 24px; }
     
-    .btn-group { display: flex; gap: 16px; }
-    .btn-mode { border: none; padding: 14px 28px; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
-    .btn-passenger { background: #10b981; color: #000; }
-    .btn-driver { background: #334155; color: #cbd5e1; }
-    .btn-mode:active { transform: scale(0.97); }
+    .btn-passenger { background: #10b981; color: #000; border: none; padding: 14px 28px; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .btn-passenger:active { transform: scale(0.97); }
 
-    #driver-block {
-      display: none; position: fixed; inset: 0; z-index: 900;
-      background: #090a0f; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px;
+    #player-container {
+      position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 10;
+      display: flex; align-items: center; justify-content: center; background: #050505;
     }
-
-    #player-container { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 10; background: #000; }
     #player-container canvas { width: 100% !important; height: 100% !important; object-fit: contain; }
 
-    #diag-panel {
-      position: absolute; top: 12px; left: 12px; z-index: 200;
-      background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.1); padding: 8px 14px; border-radius: 8px; font-size: 11px;
+    /* HUD de diagnóstico en vivo */
+    #hud-status {
+      position: absolute; top: 14px; left: 14px; z-index: 300;
+      background: rgba(15, 23, 42, 0.9); border: 1px solid #334155;
+      padding: 10px 14px; border-radius: 8px; font-size: 11px; line-height: 1.5;
     }
-    .diag-ok { color: #34d399; font-weight: 700; }
-    .diag-err { color: #f87171; font-weight: 700; }
+    .hud-ok { color: #34d399; font-weight: bold; }
+    .hud-err { color: #f87171; font-weight: bold; }
 
     #nav-controls {
-      position: absolute; bottom: 20px; right: 20px; z-index: 200; display: flex; gap: 10px;
+      position: absolute; bottom: 20px; right: 20px; z-index: 300; display: flex; gap: 10px;
     }
     .ctrl-btn {
-      background: rgba(30, 41, 59, 0.9); color: #fff; border: 1px solid #475569; padding: 10px 18px; border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer;
+      background: #1e293b; color: #fff; border: 1px solid #475569; padding: 12px 20px; border-radius: 20px; font-size: 13px; font-weight: 700; cursor: pointer;
     }
+    .ctrl-btn:active { background: #334155; }
 
     #side-drawer {
-      position: absolute; top: 0; right: 0; width: 420px; height: 100vh;
+      position: absolute; top: 0; right: 0; width: 380px; height: 100vh;
       background: rgba(18, 18, 22, 0.98); backdrop-filter: blur(20px);
-      z-index: 300; border-left: 1px solid rgba(255,255,255,0.1);
-      display: flex; flex-direction: column; padding: 24px;
-      transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 400; border-left: 1px solid #334155;
+      display: flex; flex-direction: column; padding: 20px;
+      transform: translateX(100%); transition: transform 0.3s ease;
     }
     #side-drawer.open { transform: translateX(0); }
-    .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .close-btn { background: #28282e; border: none; color: #fff; width: 34px; height: 34px; border-radius: 17px; cursor: pointer; }
-
-    .channel-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
     .channel-card {
-      background: #1c1c20; border: 1px solid #28282e; padding: 14px; border-radius: 10px; cursor: pointer;
-      display: flex; justify-content: space-between; align-items: center;
+      background: #151821; border: 1px solid #252b3b; padding: 14px; border-radius: 10px; cursor: pointer; margin-bottom: 10px;
     }
-    .channel-card:active { border-color: #e82127; }
-
-    #toast-msg {
-      position: absolute; bottom: 20px; left: 20px; z-index: 400;
-      background: rgba(0,0,0,0.9); border-left: 3px solid #e82127; padding: 10px 16px; border-radius: 4px; font-size: 12px; display: none;
-    }
+    .channel-card:active { border-color: #10b981; }
   </style>
   <script src="/player-assets/ogv.js"></script>
 </head>
 <body>
 
-  <!-- Modal de Selección de Rol -->
   <div id="safety-modal">
-    <div class="badge-sec">CONTROL DE SEGURIDAD OPERATIVA</div>
-    <h1>Selección de Rol de Cabina</h1>
+    <div class="badge-sec">MOTOR WEBGL / WASM</div>
+    <h1>Modo Pasajero Continuo</h1>
     <p class="desc">
-      Conforme a las normativas viales, la visualización de medios gráficos continuos en pantalla está habilitada exclusivamente para pasajeros.
+      El reproductor decodificará por software directamente sobre el lienzo gráfico.
     </p>
-    <div class="btn-group">
-      <button class="btn-mode btn-passenger" onclick="selectRole('passenger')">SOY PASAJERO</button>
-      <button class="btn-mode btn-driver" onclick="selectRole('driver')">SOY CONDUCTOR</button>
-    </div>
+    <button class="btn-passenger" onclick="startApp()">INICIAR REPRODUCCIÓN</button>
   </div>
 
-  <!-- Bloqueo para Conductor -->
-  <div id="driver-block">
-    <div style="font-size: 40px; margin-bottom: 12px;">🛡️</div>
-    <h2>Modo Conducción Activo</h2>
-    <p style="color:#64748b; font-size:13px; max-width:380px; margin-top:8px;">
-      La transmisión visual se encuentra deshabilitada para prevenir distracciones al volante.
-    </p>
-    <button class="ctrl-btn" style="margin-top:20px;" onclick="location.reload()">Cambiar Rol</button>
-  </div>
-
-  <!-- Contenedor del Reproductor -->
   <div id="player-container"></div>
 
-  <!-- Panel Diagnóstico -->
-  <div id="diag-panel">
-    <div>WASM: <span id="diag-wasm">Verificando...</span></div>
-    <div>OGV Core: <span id="diag-ogv">Verificando...</span></div>
+  <!-- HUD Informativo -->
+  <div id="hud-status">
+    <div>WASM: <span id="st-wasm">Comprobando...</span></div>
+    <div>Demuxer WebM: <span id="st-webm">Comprobando...</span></div>
+    <div>Estado: <span id="st-player" class="hud-ok">Esperando inicio</span></div>
   </div>
 
-  <!-- Controles -->
   <div id="nav-controls">
-    <button class="ctrl-btn" onclick="toggleDrawer()">📺 Canales</button>
+    <button class="ctrl-btn" onclick="toggleDrawer()">📺 Seleccionar Video</button>
     <button class="ctrl-btn" onclick="toggleMute()">Audio On/Off</button>
   </div>
 
-  <!-- Panel Lateral -->
   <div id="side-drawer">
-    <div class="drawer-header">
-      <h3>Canales de Transmisión</h3>
-      <button class="close-btn" onclick="toggleDrawer()">✕</button>
+    <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
+      <h3>Fuentes Disponibles</h3>
+      <button onclick="toggleDrawer()" style="background:none; border:none; color:#fff; font-size:18px; cursor:pointer;">✕</button>
     </div>
-    <div class="channel-list" id="channelListContainer"></div>
+    <div id="channelList"></div>
   </div>
 
-  <div id="toast-msg"></div>
-
   <script>
-    let ogvInstance = null;
-    let audioContextSingleton = null;
-    let userRole = null;
+    let ogvPlayer = null;
+    let audioCtx = null;
 
-    function notify(text, isError = false) {
-      const el = document.getElementById('toast-msg');
-      el.textContent = text;
-      el.style.borderLeftColor = isError ? '#f87171' : '#10b981';
-      el.style.display = 'block';
-      setTimeout(() => el.style.display = 'none', 3500);
-    }
-
-    // Singleton de AudioContext
-    function getAudioContext() {
-      if (!audioContextSingleton) {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (AudioCtx) audioContextSingleton = new AudioCtx();
-      }
-      return audioContextSingleton;
-    }
-
-    async function resumeAudio() {
-      const ctx = getAudioContext();
-      if (ctx && ctx.state === 'suspended') {
-        try { await ctx.resume(); } catch (e) {}
-      }
-    }
-
-    // Diagnóstico
-    async function runDiagnostics() {
-      const wasmSupported = typeof WebAssembly !== 'undefined';
-      const elWasm = document.getElementById('diag-wasm');
-      elWasm.className = wasmSupported ? 'diag-ok' : 'diag-err';
-      elWasm.textContent = wasmSupported ? 'DISPONIBLE' : 'NO SOPORTADO';
-
-      const ogvSupported = typeof window.OGVPlayer !== 'undefined';
-      const elOgv = document.getElementById('diag-ogv');
-      elOgv.className = ogvSupported ? 'diag-ok' : 'diag-err';
-      elOgv.textContent = ogvSupported ? 'CARGADO' : 'ERROR/AUSENTE';
+    async function checkDiagnostics() {
+      document.getElementById('st-wasm').textContent = typeof WebAssembly !== 'undefined' ? 'DISPONIBLE' : 'NO SOPORTADO';
+      document.getElementById('st-wasm').className = typeof WebAssembly !== 'undefined' ? 'hud-ok' : 'hud-err';
 
       try {
-        const res = await fetch('/api/diagnostics/player');
-        const data = await res.json();
-        if (!data.allWasmPresent) {
-          notify(`WASM faltante: ${data.missingComponents.join(', ')}`, true);
-        }
-      } catch (err) {}
+        const r = await fetch('/api/diagnostics/player');
+        const data = await r.json();
+        const hasWebm = data.hasWebmDemuxer;
+        document.getElementById('st-webm').textContent = hasWebm ? 'INSTALADO' : 'FALTANTE (Usar OGG)';
+        document.getElementById('st-webm').className = hasWebm ? 'hud-ok' : 'hud-err';
+      } catch(e) {}
     }
 
-    function selectRole(role) {
-      userRole = role;
+    function startApp() {
       document.getElementById('safety-modal').style.display = 'none';
-      resumeAudio();
 
-      if (role === 'driver') {
-        document.getElementById('driver-block').style.display = 'flex';
-      } else {
-        initPlayerEngine();
-        loadChannelList();
-      }
+      // Reactivar canal de audio
+      try {
+        const AudioClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioClass) {
+          audioCtx = new AudioClass();
+          audioCtx.resume();
+        }
+      } catch(e) {}
+
+      initEngine();
+      loadChannels();
     }
 
-    function initPlayerEngine() {
-      if (typeof window.OGVPlayer === 'undefined') {
-        return notify('Error: OGVPlayer no cargó.', true);
-      }
-
+    function initEngine() {
       const container = document.getElementById('player-container');
       container.innerHTML = '';
 
-      try {
-        ogvInstance = new window.OGVPlayer({
-          base: '/player-assets',
-          webGL: true,
-          worker: true
-        });
+      ogvPlayer = new window.OGVPlayer({
+        base: '/player-assets',
+        webGL: true,
+        worker: true
+      });
 
-        ogvInstance.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;';
-        container.appendChild(ogvInstance);
+      ogvPlayer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;';
+      container.appendChild(ogvPlayer);
 
-        ogvInstance.addEventListener('loadedmetadata', () => notify('Metadatos cargados'));
-        ogvInstance.addEventListener('ended', () => notify('Transmisión finalizada'));
-        ogvInstance.addEventListener('error', () => {
-          notify('Fallo de decodificación OGV (formato no soportado)', true);
-        });
-
-        // Anti-pausa forzada en marcha
-        ogvInstance.addEventListener('pause', () => {
-          if (userRole === 'passenger' && !ogvInstance.ended) {
-            setTimeout(() => {
-              if (userRole === 'passenger' && ogvInstance) {
-                const p = ogvInstance.play();
-                if (p !== undefined) p.catch(() => {});
-              }
-            }, 120);
-          }
-        });
-
-      } catch (err) {
-        notify('Error OGVPlayer: ' + err.message, true);
-      }
+      ogvPlayer.addEventListener('loadstart', () => updateStatus('Conectando flujo...', 'hud-ok'));
+      ogvPlayer.addEventListener('loadedmetadata', () => updateStatus('Transmitiendo fotogramas', 'hud-ok'));
+      ogvPlayer.addEventListener('error', (e) => updateStatus('Error de decodificación OGV', 'hud-err'));
+      
+      // Prevención de pausa en marcha
+      ogvPlayer.addEventListener('pause', () => {
+        if (!ogvPlayer.ended) {
+          setTimeout(() => { if (ogvPlayer) ogvPlayer.play().catch(()=>{}); }, 100);
+        }
+      });
     }
 
-    function loadChannelList() {
+    function updateStatus(txt, cls) {
+      const el = document.getElementById('st-player');
+      el.textContent = txt;
+      el.className = cls;
+    }
+
+    function loadChannels() {
       fetch('/api/iptv/data')
         .then(r => r.json())
         .then(data => {
           const channels = data.channels || [];
-          const cont = document.getElementById('channelListContainer');
-          cont.innerHTML = channels.map(c => `
-            <div class="channel-card" onclick="loadStream('${c.url}', '${c.name.replace(/'/g, "")}')">
-              <div>
-                <div style="font-weight:700; font-size:13px;">${c.name}</div>
-                <div style="font-size:10px; color:#64748b;">Tocar para sintonizar</div>
-              </div>
-              <span style="font-size:11px; color:#10b981; font-weight:700;">VER</span>
+          document.getElementById('channelList').innerHTML = channels.map(c => `
+            <div class="channel-card" onclick="playSource('${c.url}', '${c.name}')">
+              <div style="font-weight:700; font-size:13px;">${c.name}</div>
+              <div style="font-size:10px; color:#94a3b8; margin-top:4px;">Tocar para cargar</div>
             </div>
           `).join('');
 
+          // Sintonizar automáticamente la prueba OGG nativa
           if (channels.length > 0) {
-            loadStream(channels[0].url, channels[0].name);
+            playSource(channels[0].url, channels[0].name);
           }
-        }).catch(() => notify('Error cargando canales', true));
+        });
     }
 
-    function loadStream(url, name) {
-      if (userRole !== 'passenger' || !ogvInstance) return;
-      notify('Sintonizando: ' + name);
+    function playSource(url, name) {
+      updateStatus('Cargando: ' + name, 'hud-ok');
       toggleDrawer(false);
 
       const proxyUrl = `/api/proxy-stream?url=${encodeURIComponent(url)}`;
-      ogvInstance.src = proxyUrl;
-      ogvInstance.load();
-      const p = ogvInstance.play();
-      if (p !== undefined) {
-        p.catch(err => console.warn('Play diferido:', err));
-      }
+      ogvPlayer.src = proxyUrl;
+      ogvPlayer.load();
+      ogvPlayer.play().catch(e => updateStatus('Fallo al iniciar buffer', 'hud-err'));
     }
 
     function toggleMute() {
-      if (ogvInstance) {
-        ogvInstance.muted = !ogvInstance.muted;
-        notify(ogvInstance.muted ? 'Audio Silenciado' : 'Audio Activo');
-      }
+      if (ogvPlayer) ogvPlayer.muted = !ogvPlayer.muted;
     }
 
-    function toggleDrawer(forceState) {
-      const drawer = document.getElementById('side-drawer');
-      if (typeof forceState === 'boolean') {
-        drawer.classList.toggle('open', forceState);
-      } else {
-        drawer.classList.toggle('open');
-      }
+    function toggleDrawer(force) {
+      const el = document.getElementById('side-drawer');
+      el.classList.toggle('open', force);
     }
 
-    window.addEventListener('DOMContentLoaded', runDiagnostics);
+    window.addEventListener('DOMContentLoaded', checkDiagnostics);
   </script>
 </body>
 </html>
