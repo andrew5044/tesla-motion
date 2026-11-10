@@ -110,7 +110,12 @@ app.get('/api/playback/video', async (req, res) => {
   try {
     // Use one stream instance. Creating a second one after getInfo caused
     // unnecessary duplicate extraction requests to YouTube.
-    const info = await ytdl.getInfo(videoUrl);
+    // YouTube extraction can stall indefinitely when its player response changes.
+    // Bound the wait so the browser receives a real failure instead of spinning forever.
+    const info = await Promise.race([
+      ytdl.getInfo(videoUrl),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('YouTube tardó demasiado en responder (18 s).')), 18000))
+    ]);
     const format = ytdl.chooseFormat(info.formats, {
       quality: '18',
       filter: format => format.container === 'mp4' && format.hasVideo && format.hasAudio
