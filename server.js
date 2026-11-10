@@ -104,20 +104,51 @@ app.delete('/api/favorites/:id', (req, res) => {
 app.get('/api/playback/video', async (req, res) => {
   const id = String(req.query.id || '');
   if (!validVideoId(id)) return sendJson(res, 400, { error: 'ID de video no válido.' });
+
+  const videoUrl = 'https://www.youtube.com/watch?v=' + id;
+  let stream;
   try {
-    const videoUrl = 'https://www.youtube.com/watch?v=' + id;
+    // Use one stream instance. Creating a second one after getInfo caused
+    // unnecessary duplicate extraction requests to YouTube.
     const info = await ytdl.getInfo(videoUrl);
-    const format = ytdl.chooseFormat(info.formats, { quality: '18' }) || ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
-    if (!format?.url) return sendJson(res, 404, { error: 'No se encontró un formato compatible.' });
-    res.setHeader('Content-Type', format.mimeType?.split(';')[0] || 'video/mp4');
-    res.setHeader('Cache-Control', 'no-store');
-    const stream = ytdl(videoUrl, { format, highWaterMark: 1 << 20 });
-    req.on('close', () => stream.destroy());
-    stream.on('error', () => { if (!res.headersSent) res.status(502).end('No fue posible obtener el video.'); });
+    const format = ytdl.chooseFormat(info.formats, {
+      quality: '18',
+      filter: format => format.container === 'mp4' && format.hasVideo && format.hasAudio
+    }) || ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
+
+    if (!format || !format.url) {
+      return sendJson(res, 415, { error: 'YouTube no entregó un formato MP4 compatible para este video.' });
+    }
+
+    res.status(200);
+    res.setHeader('Content-Type', format.mimeType ? format.mimeType.split(';')[0] : 'video/mp4');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Accept-Ranges', 'none');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    stream = ytdl.downloadFromInfo(info, {
+      format,
+      highWaterMark: 1 << 20,
+      dlChunkSize: 0
+    });
+
+    stream.on('error', error => {
+      console.error('YouTube stream error:', error.message);
+      if (!res.headersSent) sendJson(res, 502, { error: 'Falló la transmisión desde YouTube: ' + error.message.slice(0, 180) });
+      else res.destroy(error);
+    });
+
+    // IncomingMessage "close" can fire after the request has been received,
+    // even while the response body is still streaming. Watch the response.
+    res.on('close', () => {
+      if (!res.writableEnded && stream && !stream.destroyed) stream.destroy();
+    });
+
     stream.pipe(res);
   } catch (error) {
-    console.error('YouTube playback:', error.message);
-    if (!res.headersSent) sendJson(res, 502, { error: 'YouTube no permitió obtener este video.' });
+    console.error('YouTube playback:', error.stack || error.message);
+    if (!res.headersSent) sendJson(res, 502, { error: 'No fue posible extraer el video de YouTube: ' + String(error.message || 'error desconocido').slice(0, 180) });
+    else res.destroy(error);
   }
 });
 
