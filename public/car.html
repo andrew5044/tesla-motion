@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Tesla Motion — Terminal Vehicular</title>
+  <title>Tesla Motion</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body, html { width: 100vw; height: 100vh; overflow: hidden; background: #000; color: #fff; }
@@ -39,11 +39,6 @@
     .diag-ok { color: #34d399; font-weight: 700; }
     .diag-err { color: #f87171; font-weight: 700; }
 
-    #pin-badge {
-      position: absolute; top: 12px; right: 12px; z-index: 200;
-      background: #e82127; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 800; letter-spacing: 1px;
-    }
-
     #nav-controls {
       position: absolute; bottom: 20px; right: 20px; z-index: 200; display: flex; gap: 10px;
     }
@@ -64,7 +59,7 @@
 
     .channel-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
     .channel-card {
-      background: #1c1c20; border: 1px solid #28282e; padding: 12px 14px; border-radius: 10px; cursor: pointer;
+      background: #1c1c20; border: 1px solid #28282e; padding: 14px; border-radius: 10px; cursor: pointer;
       display: flex; justify-content: space-between; align-items: center;
     }
     .channel-card:active { border-color: #e82127; }
@@ -74,12 +69,11 @@
       background: rgba(0,0,0,0.9); border-left: 3px solid #e82127; padding: 10px 16px; border-radius: 4px; font-size: 12px; display: none;
     }
   </style>
-  <script src="/socket.io/socket.io.js"></script>
   <script src="/player-assets/ogv.js"></script>
 </head>
 <body>
 
-  <!-- Modal de Seguridad Obligatorio -->
+  <!-- Modal de Selección de Rol -->
   <div id="safety-modal">
     <div class="badge-sec">CONTROL DE SEGURIDAD OPERATIVA</div>
     <h1>Selección de Rol de Cabina</h1>
@@ -92,7 +86,7 @@
     </div>
   </div>
 
-  <!-- Bloqueo para Modo Conductor -->
+  <!-- Bloqueo para Conductor -->
   <div id="driver-block">
     <div style="font-size: 40px; margin-bottom: 12px;">🛡️</div>
     <h2>Modo Conducción Activo</h2>
@@ -111,9 +105,7 @@
     <div>OGV Core: <span id="diag-ogv">Verificando...</span></div>
   </div>
 
-  <div id="pin-badge">PIN: ----</div>
-
-  <!-- Controles de Navegación -->
+  <!-- Controles -->
   <div id="nav-controls">
     <button class="ctrl-btn" onclick="toggleDrawer()">📺 Canales</button>
     <button class="ctrl-btn" onclick="toggleMute()">Audio On/Off</button>
@@ -131,11 +123,9 @@
   <div id="toast-msg"></div>
 
   <script>
-    let socket = null;
     let ogvInstance = null;
     let audioContextSingleton = null;
     let userRole = null;
-    let sessionPin = null;
 
     function notify(text, isError = false) {
       const el = document.getElementById('toast-msg');
@@ -145,13 +135,11 @@
       setTimeout(() => el.style.display = 'none', 3500);
     }
 
-    // Singleton Reutilizable de AudioContext
+    // Singleton de AudioContext
     function getAudioContext() {
       if (!audioContextSingleton) {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (AudioCtx) {
-          audioContextSingleton = new AudioCtx();
-        }
+        if (AudioCtx) audioContextSingleton = new AudioCtx();
       }
       return audioContextSingleton;
     }
@@ -159,15 +147,11 @@
     async function resumeAudio() {
       const ctx = getAudioContext();
       if (ctx && ctx.state === 'suspended') {
-        try {
-          await ctx.resume();
-        } catch (e) {
-          console.warn('Fallo al reactivar AudioContext:', e);
-        }
+        try { await ctx.resume(); } catch (e) {}
       }
     }
 
-    // Diagnóstico en Tiempo Real
+    // Diagnóstico
     async function runDiagnostics() {
       const wasmSupported = typeof WebAssembly !== 'undefined';
       const elWasm = document.getElementById('diag-wasm');
@@ -183,14 +167,11 @@
         const res = await fetch('/api/diagnostics/player');
         const data = await res.json();
         if (!data.allWasmPresent) {
-          notify(`Componentes WASM ausentes: ${data.missingComponents.join(', ')}`, true);
+          notify(`WASM faltante: ${data.missingComponents.join(', ')}`, true);
         }
-      } catch (err) {
-        console.warn('No se pudo consultar diagnóstico backend');
-      }
+      } catch (err) {}
     }
 
-    // Selección de Rol
     function selectRole(role) {
       userRole = role;
       document.getElementById('safety-modal').style.display = 'none';
@@ -198,17 +179,15 @@
 
       if (role === 'driver') {
         document.getElementById('driver-block').style.display = 'flex';
-        initSocketConnection(false);
       } else {
         initPlayerEngine();
-        initSocketConnection(true);
         loadChannelList();
       }
     }
 
     function initPlayerEngine() {
       if (typeof window.OGVPlayer === 'undefined') {
-        return notify('Error crítico: OGVPlayer no se encuentra cargado.', true);
+        return notify('Error: OGVPlayer no cargó.', true);
       }
 
       const container = document.getElementById('player-container');
@@ -227,10 +206,10 @@
         ogvInstance.addEventListener('loadedmetadata', () => notify('Metadatos cargados'));
         ogvInstance.addEventListener('ended', () => notify('Transmisión finalizada'));
         ogvInstance.addEventListener('error', () => {
-          notify('Fallo de decodificación en OGVPlayer (Verifique códec compatible)', true);
+          notify('Fallo de decodificación OGV (formato no soportado)', true);
         });
 
-        // Prevención de pausa forzada por movimiento del vehículo
+        // Anti-pausa forzada en marcha
         ogvInstance.addEventListener('pause', () => {
           if (userRole === 'passenger' && !ogvInstance.ended) {
             setTimeout(() => {
@@ -243,41 +222,8 @@
         });
 
       } catch (err) {
-        notify('Error inicializando OGVPlayer: ' + err.message, true);
+        notify('Error OGVPlayer: ' + err.message, true);
       }
-    }
-
-    // Socket.IO y Emparejamiento
-    function initSocketConnection(isPassenger) {
-      socket = io();
-
-      socket.on('connect', () => {
-        socket.emit('register-player', { isPassenger });
-      });
-
-      socket.on('player-registered', ({ pin }) => {
-        sessionPin = pin;
-        document.getElementById('pin-badge').textContent = `PIN: ${pin}`;
-      });
-
-      socket.on('execute-command', ({ action, payload }) => {
-        if (userRole !== 'passenger' || !ogvInstance) return;
-
-        switch (action) {
-          case 'play':
-            ogvInstance.play().catch(() => {});
-            break;
-          case 'pause':
-            ogvInstance.pause();
-            break;
-          case 'seek':
-            if (payload && Number.isFinite(payload.time)) ogvInstance.currentTime = payload.time;
-            break;
-          case 'changeChannel':
-            if (payload && payload.url) loadStream(payload.url, payload.name || 'Canal');
-            break;
-        }
-      });
     }
 
     function loadChannelList() {
@@ -312,9 +258,7 @@
       ogvInstance.load();
       const p = ogvInstance.play();
       if (p !== undefined) {
-        p.catch(err => {
-          console.warn('Reproducción diferida:', err);
-        });
+        p.catch(err => console.warn('Play diferido:', err));
       }
     }
 

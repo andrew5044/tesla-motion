@@ -6,11 +6,9 @@ const path = require('path');
 const fs = require('fs');
 const dns = require('dns').promises;
 const { URL } = require('url');
-const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
 
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
@@ -19,7 +17,7 @@ const FAV_FILE = path.join(DATA_DIR, 'favorites.json');
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// 1. Inicialización de Persistencia de Favoritos
+// 1. Persistencia local de favoritos
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(FAV_FILE)) fs.writeFileSync(FAV_FILE, JSON.stringify([]), 'utf-8');
 
@@ -35,13 +33,12 @@ function writeFavorites(favs) {
   fs.writeFileSync(FAV_FILE, JSON.stringify(favs, null, 2), 'utf-8');
 }
 
-// 2. Rutas Estáticas
+// 2. Rutas
 app.get('/car', (req, res) => res.sendFile(path.join(__dirname, 'public', 'car.html')));
-app.get('/remote', (req, res) => res.sendFile(path.join(__dirname, 'public', 'remote.html')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'car.html')));
 app.get('/health', (req, res) => res.send('OK'));
 
-// 3. Protección SSRF y Validación
+// 3. Protección SSRF y Lista Blanca
 const ALLOWED_DOMAINS = [
   'test-streams.mux.dev',
   'upload.wikimedia.org',
@@ -74,7 +71,7 @@ async function validateUrlSecurity(targetUrl) {
   const addresses = await dns.lookup(hostname, { all: true });
   for (const addr of addresses) {
     if (isPrivateIP(addr.address)) {
-      throw new Error('Acceso denegado: dirección IP privada detectada');
+      throw new Error('Dirección IP privada detectada');
     }
   }
 
@@ -188,46 +185,11 @@ app.get('/api/diagnostics/player', (req, res) => {
     ogvCoreAvailable: present.includes('ogv.js'),
     allWasmPresent: missing.length === 0,
     presentComponents: present,
-    missingComponents: missing,
-    wasmSupportServerEnv: typeof WebAssembly !== 'undefined'
+    missingComponents: missing
   });
 });
 
-// 6. CRUD de Favoritos
-app.get('/api/favorites', (req, res) => {
-  res.json(readFavorites());
-});
-
-app.post('/api/favorites', (req, res) => {
-  const { id, name, url } = req.body;
-  if (!id || !name || !url || typeof url !== 'string') {
-    return res.status(400).json({ error: 'Datos incompletos o inválidos' });
-  }
-
-  try {
-    new URL(url);
-  } catch (e) {
-    return res.status(400).json({ error: 'URL malformada' });
-  }
-
-  const favs = readFavorites();
-  const exists = favs.some(f => f.url === url || f.id === id);
-  if (!exists) {
-    favs.push({ id: String(id).slice(0, 50), name: String(name).slice(0, 100), url });
-    writeFavorites(favs);
-  }
-  res.json({ success: true, favorites: favs });
-});
-
-app.delete('/api/favorites/:id', (req, res) => {
-  const favId = req.params.id;
-  let favs = readFavorites();
-  favs = favs.filter(f => f.id !== favId);
-  writeFavorites(favs);
-  res.json({ success: true, favorites: favs });
-});
-
-// 7. Canales por Defecto
+// 6. Canales y Favoritos
 const CANALES_DEFAULT = [
   { id: 'demo1', name: 'Canal de Demostración (WebM VP9)', url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.360p.vp9.webm' },
   { id: 'demo2', name: 'Canal Animación (Sintel VP9)', url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/f/f1/Sintel_movie_4K.webm/Sintel_movie_4K.webm.360p.vp9.webm' },
@@ -238,65 +200,23 @@ app.get('/api/iptv/data', (req, res) => {
   res.json({ channels: CANALES_DEFAULT, favorites: readFavorites() });
 });
 
-// 8. Control Remoto Socket.IO
-const activeSessions = new Map();
+app.post('/api/favorites', (req, res) => {
+  const { id, name, url } = req.body;
+  if (!id || !name || !url) return res.status(400).json({ error: 'Datos incompletos' });
+  const favs = readFavorites();
+  if (!favs.some(f => f.url === url)) {
+    favs.push({ id, name, url });
+    writeFavorites(favs);
+  }
+  res.json({ success: true, favorites: favs });
+});
 
-io.on('connection', (socket) => {
-  socket.on('register-player', ({ isPassenger }) => {
-    const pin = Math.floor(1000 + Math.random() * 9000).toString();
-    const sessionData = {
-      playerSocketId: socket.id,
-      pin,
-      isPassenger: Boolean(isPassenger),
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 5 * 60 * 1000
-    };
-
-    activeSessions.set(pin, sessionData);
-    socket.join(`room_${pin}`);
-    socket.emit('player-registered', { pin, expiresAt: sessionData.expiresAt });
-  });
-
-  socket.on('pair-remote', ({ pin }) => {
-    const session = activeSessions.get(pin);
-    if (!session) {
-      return socket.emit('pair-error', { message: 'PIN incorrecto o inexistente' });
-    }
-    if (Date.now() > session.expiresAt) {
-      activeSessions.delete(pin);
-      return socket.emit('pair-error', { message: 'El PIN ha caducado' });
-    }
-
-    socket.join(`room_${pin}`);
-    socket.emit('pair-success', { isPassenger: session.isPassenger });
-    io.to(`room_${pin}`).emit('remote-connected');
-  });
-
-  socket.on('player-command', ({ pin, action, payload }) => {
-    const session = activeSessions.get(pin);
-    if (!session) return socket.emit('command-error', { message: 'Sesión no válida' });
-    if (!session.isPassenger) {
-      return socket.emit('command-error', { message: 'Operación denegada en Modo Conductor' });
-    }
-
-    const ALLOWED = ['play', 'pause', 'seek', 'changeChannel'];
-    if (!ALLOWED.includes(action)) {
-      return socket.emit('command-error', { message: 'Comando no permitido' });
-    }
-
-    io.to(`room_${pin}`).emit('execute-command', { action, payload });
-  });
-
-  socket.on('disconnect', () => {
-    for (const [pin, s] of activeSessions.entries()) {
-      if (s.playerSocketId === socket.id) {
-        activeSessions.delete(pin);
-        io.to(`room_${pin}`).emit('player-disconnected');
-      }
-    }
-  });
+app.delete('/api/favorites/:id', (req, res) => {
+  let favs = readFavorites().filter(f => f.id !== req.params.id);
+  writeFavorites(favs);
+  res.json({ success: true, favorites: favs });
 });
 
 server.listen(PORT, () => {
-  console.log(`[Tesla Motion] Servidor listo y escuchando en puerto ${PORT}`);
+  console.log(`[Tesla Motion] Servidor listo en puerto ${PORT} (Sin control remoto)`);
 });
