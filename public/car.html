@@ -32,9 +32,28 @@
       width: 100vw !important; height: 100vh !important; object-fit: contain;
     }
 
+    #home-hub {
+      position: fixed; inset: 0; z-index: 100;
+      background: #0a0a0c; display: none; flex-direction: column;
+      align-items: center; justify-content: center; padding: 30px;
+    }
+    .hub-title { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    .hub-sub { font-size: 14px; color: #777; margin-bottom: 36px; }
+
+    .hub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%; max-width: 680px; }
+    .hub-card {
+      background: #151518; border: 1px solid #28282e; border-radius: 16px;
+      padding: 36px 20px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; cursor: pointer; text-align: center;
+    }
+    .hub-card:active { border-color: #e82127; }
+    .hub-icon { font-size: 48px; margin-bottom: 16px; }
+    .hub-card-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .hub-card-desc { font-size: 12px; color: #888; }
+
     #nav-bar {
       position: absolute; bottom: 24px; right: 24px; z-index: 150;
-      display: flex; gap: 12px;
+      display: none; gap: 12px;
     }
     .nav-action-btn {
       background: rgba(24, 24, 28, 0.9); color: #fff; border: 1px solid #333;
@@ -53,13 +72,42 @@
     .drawer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .close-btn { background: #28282e; border: none; color: #fff; width: 34px; height: 34px; border-radius: 17px; cursor: pointer; }
 
-    .channel-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .search-wrapper { position: relative; margin-bottom: 12px; }
+    .search-row { display: flex; gap: 8px; }
+    .search-row input {
+      flex: 1; padding: 12px 14px; border-radius: 10px;
+      border: 1px solid #333; background: #0a0a0c; color: #fff; font-size: 14px;
+    }
+    .search-row button {
+      background: #e82127; border: none; color: #fff; padding: 12px 18px;
+      border-radius: 10px; font-weight: 700; cursor: pointer;
+    }
+
+    #suggest-box {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: #18181c; border: 1px solid #333; border-radius: 10px;
+      max-height: 200px; overflow-y: auto; z-index: 250; display: none;
+    }
+    .suggest-item { padding: 10px 14px; border-bottom: 1px solid #242428; cursor: pointer; font-size: 13px; }
+    .suggest-item:hover { background: #25252b; color: #e82127; }
+
+    .results-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+
     .channel-card {
       background: #1c1c20; border: 1px solid #28282e; padding: 14px; border-radius: 10px; cursor: pointer;
     }
     .channel-card:active { border-color: #e82127; }
     .channel-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
     .channel-sub { font-size: 11px; color: #888; }
+
+    .yt-card {
+      display: flex; gap: 12px; background: #18181c; border: 1px solid #28282e;
+      border-radius: 10px; padding: 8px; cursor: pointer;
+    }
+    .yt-card img { width: 120px; height: 68px; object-fit: cover; border-radius: 6px; }
+    .yt-info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+    .yt-title { font-size: 13px; font-weight: 600; line-height: 1.3; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .yt-meta { font-size: 11px; color: #888; }
 
     #status-pill {
       position: absolute; top: 16px; left: 20px; z-index: 300;
@@ -75,22 +123,51 @@
   <div id="overlay">
     <div class="badge">SISTEMA TESLA MOTION</div>
     <h1>Paso 1: Pon el vehículo en Drive (D)</h1>
-    <p>Pasa primero a Drive (D) y luego pulsa el botón para activar el reproductor por software y el canal de audio.</p>
+    <p>Para activar el motor gráfico por software sin pantalla negra, pasa primero a Drive y luego pulsa el botón.</p>
     <button class="btn-auth" onclick="unlockHub()">YA ESTOY EN DRIVE • INICIAR</button>
+  </div>
+
+  <div id="home-hub">
+    <div class="hub-title">¿Qué deseas ver hoy?</div>
+    <div class="hub-sub">Selecciona una fuente de transmisión</div>
+
+    <div class="hub-grid">
+      <div class="hub-card" onclick="openSection('youtube')">
+        <div class="hub-icon">▶️</div>
+        <div class="hub-card-title">YouTube</div>
+        <div class="hub-card-desc">Motor continuo en marcha</div>
+      </div>
+
+      <div class="hub-card" onclick="openSection('iptv')">
+        <div class="hub-icon">📺</div>
+        <div class="hub-card-title">Televisión en Vivo</div>
+        <div class="hub-card-desc">Canales sincronizados</div>
+      </div>
+    </div>
   </div>
 
   <div id="player-mount"></div>
 
   <div id="nav-bar">
-    <button class="nav-action-btn" onclick="toggleDrawer()">📺 Canales</button>
+    <button class="nav-action-btn" onclick="showHub()">🏠 Menú Principal</button>
+    <button class="nav-action-btn" onclick="toggleDrawer()">🔍 Buscar / Canales</button>
   </div>
 
   <div id="side-drawer">
     <div class="drawer-header">
-      <h3>Canales de Transmisión</h3>
+      <h3 id="drawer-title">Contenido</h3>
       <button class="close-btn" onclick="toggleDrawer()">✕</button>
     </div>
-    <div class="channel-list" id="channelListContainer"></div>
+
+    <div class="search-wrapper" id="searchWrapper">
+      <div class="search-row">
+        <input type="text" id="streamInput" placeholder="Buscar video..." autocomplete="off">
+        <button onclick="triggerSearch()">Buscar</button>
+      </div>
+      <div id="suggest-box"></div>
+    </div>
+
+    <div class="results-scroll" id="drawerContent"></div>
   </div>
 
   <div id="status-pill">Listo</div>
@@ -98,13 +175,19 @@
   <script>
     let playerInstance = null;
     let userAuthorized = false;
-    let audioContextShared = null;
+    let currentMode = 'none';
+    let suggestDebounce = null;
 
     const overlay = document.getElementById('overlay');
+    const homeHub = document.getElementById('home-hub');
     const playerMount = document.getElementById('player-mount');
+    const navBar = document.getElementById('nav-bar');
     const sideDrawer = document.getElementById('side-drawer');
     const statusPill = document.getElementById('status-pill');
-    const channelListContainer = document.getElementById('channelListContainer');
+    const streamInput = document.getElementById('streamInput');
+    const suggestBox = document.getElementById('suggest-box');
+    const drawerContent = document.getElementById('drawerContent');
+    const searchWrapper = document.getElementById('searchWrapper');
 
     function showStatus(msg) {
       statusPill.textContent = msg;
@@ -112,19 +195,19 @@
       setTimeout(() => { statusPill.style.opacity = '0'; }, 3000);
     }
 
-    // Inicialización del motor idéntico a MotionStream
-    function initEngine() {
+    // Inicialización del motor nativo idéntico a MotionStream
+    function initPlayerEngine() {
       if (playerInstance) {
-        try { playerInstance.stop(); } catch(e){}
+        try { playerInstance.stop(); } catch (e) {}
         playerMount.innerHTML = '';
       }
 
-      // Desbloquear canal de audio en el navegador de Tesla
+      // Desbloqueo del contexto de audio
       try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (AudioCtx) {
-          audioContextShared = new AudioCtx();
-          audioContextShared.resume();
+          const ctx = new AudioCtx();
+          ctx.resume();
         }
       } catch(e){}
 
@@ -137,9 +220,9 @@
       playerInstance.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;';
       playerMount.appendChild(playerInstance);
 
-      // Si el carro intenta pausar el video en movimiento, forzar play
+      // Reanudación inmediata si el vehículo envía evento de pausa
       playerInstance.addEventListener('pause', () => {
-        if (userAuthorized && !playerInstance.ended) {
+        if (userAuthorized && !playerInstance.ended && currentMode !== 'none') {
           setTimeout(() => {
             if (userAuthorized && playerInstance) playerInstance.play();
           }, 100);
@@ -149,43 +232,124 @@
 
     function unlockHub() {
       overlay.style.display = 'none';
+      homeHub.style.display = 'flex';
       userAuthorized = true;
-      initEngine();
-      loadChannels();
+      initPlayerEngine();
     }
 
-    function loadChannels() {
+    function openSection(mode) {
+      currentMode = mode;
+      homeHub.style.display = 'none';
+      navBar.style.display = 'flex';
+      suggestBox.style.display = 'none';
+
+      const drawerTitle = document.getElementById('drawer-title');
+      if (mode === 'youtube') {
+        searchWrapper.style.display = 'block';
+        drawerTitle.textContent = 'Buscar en YouTube';
+        streamInput.placeholder = 'Escribe lo que quieras ver...';
+        streamInput.value = '';
+        drawerContent.innerHTML = '<div style="color:#777; font-size:13px; text-align:center; padding:30px;">Escribe una palabra o artista para buscar.</div>';
+      } else {
+        searchWrapper.style.display = 'none';
+        drawerTitle.textContent = 'Canales de Televisión';
+        loadTvChannels();
+      }
+      toggleDrawer();
+    }
+
+    streamInput.addEventListener('input', () => {
+      const q = streamInput.value.trim();
+      clearTimeout(suggestDebounce);
+      if (q.length < 2) { suggestBox.style.display = 'none'; return; }
+      suggestDebounce = setTimeout(() => {
+        fetch(`/api/yt-suggest?q=${encodeURIComponent(q)}`)
+          .then(r => r.json())
+          .then(items => {
+            if (!items.length) { suggestBox.style.display = 'none'; return; }
+            suggestBox.innerHTML = items.map(text => `
+              <div class="suggest-item" onclick="selectSuggestion('${text.replace(/'/g, "\\'")}')">🔍 ${text}</div>
+            `).join('');
+            suggestBox.style.display = 'block';
+          }).catch(() => { suggestBox.style.display = 'none'; });
+      }, 180);
+    });
+
+    function selectSuggestion(text) {
+      streamInput.value = text;
+      suggestBox.style.display = 'none';
+      triggerSearch();
+    }
+
+    function triggerSearch() {
+      suggestBox.style.display = 'none';
+      const q = streamInput.value.trim();
+      if (!q) return;
+
+      showStatus('Buscando en YouTube...');
+      drawerContent.innerHTML = '<div style="color:#aaa; text-align:center; padding:30px;">Cargando...</div>';
+      fetch(`/api/yt-search?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(videos => {
+          if (!videos.length) {
+            drawerContent.innerHTML = '<div style="color:#aaa; text-align:center; padding:30px;">Sin resultados.</div>';
+            return;
+          }
+          drawerContent.innerHTML = videos.map(v => `
+            <div class="yt-card" onclick="playYouTube('${v.id}', '${v.title.replace(/'/g, "\\'")}')">
+              <img src="${v.thumbnail || ''}" alt="miniatura">
+              <div class="yt-info">
+                <div class="yt-title">${v.title}</div>
+                <div class="yt-meta">${v.channel} • ${v.duration}</div>
+              </div>
+            </div>
+          `).join('');
+        }).catch(() => { drawerContent.innerHTML = '<div style="color:#e82127; text-align:center; padding:30px;">Error al buscar.</div>'; });
+    }
+
+    function playYouTube(videoId, title) {
+      showStatus('Reproduciendo: ' + title);
+      toggleDrawer();
+
+      if (!playerInstance) initPlayerEngine();
+      // Alimentar directamente desde el endpoint dedicado
+      playerInstance.src = `/api/playback/video?id=${videoId}`;
+      playerInstance.load();
+      playerInstance.play();
+    }
+
+    function loadTvChannels() {
       fetch('/api/iptv/data')
         .then(r => r.json())
         .then(data => {
           const channels = data.channels || [];
-          channelListContainer.innerHTML = channels.map(c => `
-            <div class="channel-card" onclick="tuneChannel('${encodeURIComponent(c.url)}', '${c.name.replace(/'/g, "")}')">
+          drawerContent.innerHTML = channels.map(c => `
+            <div class="channel-card" onclick="playTv('${encodeURIComponent(c.url)}', '${c.name.replace(/'/g, "")}')">
               <div class="channel-name">${c.name}</div>
-              <div class="channel-sub">Tocar para sintonizar en ruta</div>
+              <div class="channel-sub">Tocar para sintonizar en marcha</div>
             </div>
           `).join('');
-
-          // Sintonizar automáticamente el primer canal a través del proxy
-          if (channels.length > 0) {
-            tuneChannel(encodeURIComponent(channels[0].url), channels[0].name);
-          }
-        }).catch(() => {
-          showStatus('Error cargando canales');
-        });
+        }).catch(() => { drawerContent.innerHTML = '<div style="color:#888; text-align:center; padding:30px;">Error cargando canales</div>'; });
     }
 
-    function tuneChannel(encodedUrl, name) {
+    function playTv(encodedUrl, name) {
       showStatus('Sintonizando: ' + name);
-      sideDrawer.classList.remove('open');
+      toggleDrawer();
 
-      if (!playerInstance) initEngine();
-
-      // Enrutar siempre por el proxy para eliminar bloqueos CORS de Tesla
-      const proxyUrl = `/api/proxy-stream?url=${encodedUrl}`;
-      playerInstance.src = proxyUrl;
+      if (!playerInstance) initPlayerEngine();
+      playerInstance.src = `/api/playback/video?url=${encodedUrl}`;
       playerInstance.load();
       playerInstance.play();
+    }
+
+    function showHub() {
+      if (playerInstance) {
+        try { playerInstance.stop(); } catch (e) {}
+      }
+      currentMode = 'none';
+      sideDrawer.classList.remove('open');
+      navBar.style.display = 'none';
+      homeHub.style.display = 'flex';
     }
 
     function toggleDrawer() {
